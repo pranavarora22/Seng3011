@@ -1,0 +1,86 @@
+[
+  {
+    "event_id": "salmonella-NSW-2024-12-27",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "NSW",
+      "date": "2024-12-27",
+      "cases_detected": 25
+    }
+  },
+  {
+    "event_id": "salmonella-NSW-2025-01-03",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "NSW",
+      "date": "2025-01-03",
+      "cases_detected": 18
+    }
+  },
+  {
+    "event_id": "salmonella-NT-2025-01-03",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "NT",
+      "date": "2025-01-03",
+      "cases_detected": 1
+    }
+  },
+  {
+    "event_id": "salmonella-QLD-2025-01-03",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "QLD",
+      "date": "2025-01-03",
+      "cases_detected": 26
+    }
+  },
+  {
+    "event_id": "salmonella-SA-2025-01-03",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "SA",
+      "date": "2025-01-03",
+      "cases_detected": 4
+    }
+  },
+  {
+    "event_id": "salmonella-VIC-2025-01-03",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "VIC",
+      "date": "2025-01-03",
+      "cases_detected": 13
+    }
+  },
+  {
+    "event_id": "salmonella-WA-2025-01-03",
+    "timestamp": "2026-03-12T13:43:19.676718+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "salmonella",
+      "state": "WA",
+      "date": "2025-01-03",
+      "cases_detected": 12
+    }
+  }
+]
