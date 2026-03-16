@@ -1,137 +1,104 @@
 import os
-import io
 import json
 import logging
-from datetime import datetime
+import boto3
 from urllib.parse import parse_qs
 
-# Configure logger for Lambda execution logs
+# Configure logger so errors and runtime information appear in AWS CloudWatch
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Environment variables used when running in AWS
-# S3_BUCKET: name of the S3 bucket storing normalized datasets
-# CLEAN_PREFIX: folder/prefix inside the bucket where cleaned JSON files are stored
-S3_BUCKET = os.environ.get("S3_BUCKET", "")
+# Environment variables used to locate normalized datasets in S3
+# S3_BUCKET: bucket storing cleaned datasets
+# CLEAN_PREFIX: folder inside the bucket containing JSON files
+S3_BUCKET = os.environ["S3_BUCKET"]
 CLEAN_PREFIX = os.environ.get("CLEAN_PREFIX", "normalized-data")
 
-# Local path used when running tests without AWS
-LOCAL_CLEAN_PATH = os.path.join("tests", "mock_s3", "normalized-data")
+# Currently the service only supports influenza data
+VALID_DISEASES = {"influenza"}
 
-# Allowed Australian states for validation
-VALID_STATES = {"ACT", "NSW", "NT", "QLD", "SA", "TAS", "VIC", "WA"}
-
-# Supported diseases in the system
-VALID_DISEASES = {"influenza", "salmonella", "meningococcal", "pneumococcal"}
-
-
-def is_local_mock():
-    """
-    Determines whether the function is running in local test mode.
-
-    LOCAL_MOCK=true → use local files
-    Otherwise → use AWS S3
-    """
-    return os.environ.get("LOCAL_MOCK", "").strip().lower() == "true"
+# Create an S3 client for retrieving files
+s3 = boto3.client("s3")
 
 
 def response(status_code, body):
     """
-    Helper function to create a standardized Lambda HTTP response.
+    Helper function to construct a standard HTTP response
+    returned by the Lambda function.
     """
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},
-        "body": json.dumps(body, default=str),
+        "body": json.dumps(body),
     }
 
 
 def parse_query_params(event):
     """
-    Extracts and validates query parameters from the incoming request.
+    Extract and validate query parameters from an API request.
 
     Supported parameters:
-    - disease
-    - state
-    - start_date
-    - end_date
-    - limit
+        disease
+        country_code
+        start_epi_week
+        end_epi_week
+        limit
     """
 
-    # API Gateway usually provides queryStringParameters
+    # API Gateway typically provides queryStringParameters
     params = dict(event.get("queryStringParameters") or {})
 
-    # Support rawQueryString shape used by Lambda Function URLs / HTTP API
+    # Lambda Function URLs sometimes send rawQueryString instead
     if not params and event.get("rawQueryString"):
         raw = parse_qs(event["rawQueryString"])
         params = {k: v[0] for k, v in raw.items() if v}
 
     disease = params.get("disease")
-    state = params.get("state")
-    start_date = params.get("start_date")
-    end_date = params.get("end_date")
+    country_code = params.get("country_code")
+    start_epi_week = params.get("start_epi_week")
+    end_epi_week = params.get("end_epi_week")
     limit = params.get("limit")
 
-    # Validate disease parameter
+    # Validate disease
     if disease:
-        disease = disease.strip().lower()
+        disease = disease.lower()
         if disease not in VALID_DISEASES:
-            raise ValueError(
-                f"Invalid disease '{disease}'. Expected one of: {sorted(VALID_DISEASES)}"
-            )
+            raise ValueError(f"Invalid disease '{disease}'")
 
-    # Validate state parameter
-    if state:
-        state = state.strip().upper()
-        if state not in VALID_STATES:
-            raise ValueError(
-                f"Invalid state '{state}'. Expected one of: {sorted(VALID_STATES)}"
-            )
+    # Validate country code
+    if country_code:
+        country_code = country_code.upper()
+        if len(country_code) != 3:
+            raise ValueError("country_code must be a 3-letter code")
 
-    # Validate date parameters (must follow YYYY-MM-DD)
-    for label, value in [("start_date", start_date), ("end_date", end_date)]:
-        if value:
-            datetime.strptime(value, "%Y-%m-%d")
-
-    # Ensure date range is logical
-    if start_date and end_date and start_date > end_date:
-        raise ValueError("start_date must be less than or equal to end_date")
-
-    # Validate limit parameter
+    # Validate limit
     if limit is not None:
         limit = int(limit)
         if limit <= 0:
-            raise ValueError("limit must be a positive integer")
+            raise ValueError("limit must be positive")
 
     return {
         "disease": disease,
-        "state": state,
-        "start_date": start_date,
-        "end_date": end_date,
+        "country_code": country_code,
+        "start_epi_week": start_epi_week,
+        "end_epi_week": end_epi_week,
         "limit": limit,
     }
 
 
-def load_records_for_disease(disease):
+def load_records_from_s3(disease):
     """
-    Loads normalized JSON records for a specific disease.
+    Load normalized dataset from S3.
 
-    If running locally → read from local filesystem.
-    If running in AWS → read from S3 bucket.
+    Each disease has its own normalized JSON file
+    produced by the data collection Lambda.
     """
+
     filename = f"{disease}_clean.json"
-
-    # Local testing mode
-    if is_local_mock():
-        path = os.path.join(LOCAL_CLEAN_PATH, filename)
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-    # AWS production mode
-    import boto3
-    s3 = boto3.client("s3")
-
     key = f"{CLEAN_PREFIX}/{filename}"
+
+    logger.info(f"Reading dataset from S3: {key}")
+
     obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
 
     return json.loads(obj["Body"].read().decode("utf-8"))
@@ -139,26 +106,23 @@ def load_records_for_disease(disease):
 
 def record_matches(record, filters):
     """
-    Checks whether a given record satisfies the requested filters.
-
-    Filters applied:
-    - state
-    - start_date
-    - end_date
+    Determine whether a record matches the supplied filters.
     """
 
-    payload = record.get("payload", {})
+    payload = record["payload"]
 
-    # State filtering
-    if filters["state"] and payload.get("state") != filters["state"]:
+    # Filter by country
+    if filters["country_code"]:
+        if payload["country_code"] != filters["country_code"]:
+            return False
+
+    epi_week = payload["epi_week"]
+
+    # Filter by epi week range
+    if filters["start_epi_week"] and epi_week < filters["start_epi_week"]:
         return False
 
-    # Date filtering
-    record_date = payload.get("date")
-
-    if filters["start_date"] and record_date < filters["start_date"]:
-        return False
-    if filters["end_date"] and record_date > filters["end_date"]:
+    if filters["end_epi_week"] and epi_week > filters["end_epi_week"]:
         return False
 
     return True
@@ -169,58 +133,55 @@ def lambda_handler(event, context):
     Main Lambda entry point.
 
     Workflow:
-    1. Parse and validate query parameters
-    2. Load normalized datasets
-    3. Filter records
-    4. Sort results
-    5. Apply limit
-    6. Return JSON response
+        1. Parse query parameters
+        2. Load dataset from S3
+        3. Apply filters
+        4. Sort results
+        5. Apply limit
+        6. Return JSON response
     """
 
-    # Step 1: Parse filters
+    # Step 1: parse filters
     try:
-        filters = parse_query_params(event or {})
-    except ValueError as exc:
-        return response(400, {"error": str(exc)})
+        filters = parse_query_params(event)
+    except ValueError as e:
+        return response(400, {"error": str(e)})
 
-    # Determine which diseases to search
-    diseases = [filters["disease"]] if filters["disease"] else sorted(VALID_DISEASES)
+    disease = filters["disease"] or "influenza"
 
     try:
-        matched = []
+        # Step 2: load dataset from S3
+        records = load_records_from_s3(disease)
 
-        # Step 2–3: Load records and apply filters
-        for disease in diseases:
-            records = load_records_for_disease(disease)
-            matched.extend([r for r in records if record_matches(r, filters)])
+        # Step 3: apply filtering
+        matched = [r for r in records if record_matches(r, filters)]
 
-        # Step 4: Sort results by date → state → disease
-        matched.sort(key=lambda r: (r["payload"]["date"], r["payload"]["state"], r["payload"]["disease"]))
+        # Step 4: sort results for consistent ordering
+        matched.sort(
+            key=lambda r: (
+                r["payload"]["epi_week"],
+                r["payload"]["country_code"]
+            )
+        )
 
-        # Step 5: Apply result limit if specified
-        if filters["limit"] is not None:
+        # Step 5: apply limit if requested
+        if filters["limit"]:
             matched = matched[: filters["limit"]]
 
-        # If no matching records found
+        # If no records match
         if not matched:
-            return response(404, {"error": "No records found for the supplied filters"})
+            return response(404, {"error": "No records found"})
 
-        # Step 6: Return successful response
+        # Step 6: return response
         return response(
             200,
             {
                 "count": len(matched),
-                "filters": {k: v for k, v in filters.items() if v is not None},
                 "items": matched,
             },
         )
 
-    # Error if normalized dataset file is missing
-    except FileNotFoundError as exc:
-        logger.error("Missing normalized file: %s", exc)
-        return response(500, {"error": f"Normalized dataset missing: {exc}"})
-    
-    # Catch-all error handler
-    except Exception as exc:
-        logger.error("Retrieval failed: %s", exc, exc_info=True)
-        return response(500, {"error": "Internal server error", "detail": str(exc)})
+    except Exception as e:
+        logger.error(e, exc_info=True)
+        return response(500, {"error": "Internal server error"})
+        

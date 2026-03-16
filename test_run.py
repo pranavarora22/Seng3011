@@ -1,7 +1,7 @@
 """Local test harness for the data collection Lambda function.
 
-Sets LOCAL_MOCK=True so the handler reads from tests/mock_s3/raw-data/
-and writes to tests/mock_s3/normalized-data/ using plain file I/O.
+Sets LOCAL_MOCK=True so the handler writes to tests/mock_s3/normalized-data/.
+In mock mode, process_flunet_disease skips real HTTP calls and returns [].
 """
 
 import os
@@ -20,22 +20,16 @@ def main():
     print("\n=== Lambda Result ===")
     print(json.dumps(json.loads(result["body"]), indent=2))
 
-    diseases = ["influenza", "salmonella", "meningococcal", "pneumococcal"]
-    all_ok = True
-    for disease in diseases:
-        path = os.path.join(out_dir, f"{disease}_clean.json")
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                records = json.load(f)
-            print(f"  {disease}_clean.json: {len(records)} records, "
-                  f"{os.path.getsize(path)} bytes")
-        else:
-            print(f"  WARNING: {path} not found!")
-            all_ok = False
-
-    if not all_ok:
+    path = os.path.join(out_dir, "influenza_clean.json")
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        print(f"  influenza_clean.json: {len(records)} records, {os.path.getsize(path)} bytes")
+    else:
+        print(f"  WARNING: {path} not found!")
         sys.exit(1)
-    print("\nAll output files generated successfully.")
+
+    print("\nOutput file generated successfully.")
 
 
 if __name__ == "__main__":
