@@ -1,3 +1,4 @@
+
 """Local test harness for the data collection Lambda function.
 
 Sets LOCAL_MOCK=True so the handler writes to tests/mock_s3/normalized-data/.

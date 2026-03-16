@@ -1,0 +1,11 @@
+{
+    "items": [
+      {"payload": {"country_code": "AUS", "epi_week": "2025-W01", "cases_detected": 100}},
+      {"payload": {"country_code": "AUS", "epi_week": "2025-W02", "cases_detected": 110}},
+      {"payload": {"country_code": "AUS", "epi_week": "2025-W03", "cases_detected": 120}},
+      {"payload": {"country_code": "AUS", "epi_week": "2025-W04", "cases_detected": 130}},
+      {"payload": {"country_code": "AUS", "epi_week": "2025-W05", "cases_detected": 300}}
+    ]
+  }
+
+  

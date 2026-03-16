@@ -82,3 +82,48 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   principal     = "events.amazonaws.com"
   source_arn    = aws_cloudwatch_event_rule.weekly_trigger.arn
 }
+
+# -----------------------------------------------------------------------------
+# Data retrieval Lambda
+# -----------------------------------------------------------------------------
+
+resource "aws_lambda_function" "data_retriever" {
+  function_name    = "seng3011-data-retriever"
+  role             = data.aws_iam_role.lab_role.arn
+  handler          = "retrieval_lambda.lambda_handler"
+  runtime          = "python3.10"
+  timeout          = 60
+  memory_size      = 256
+  s3_bucket        = aws_s3_bucket.data_bucket.id
+  s3_key           = aws_s3_object.lambda_code.key
+  source_code_hash = filebase64sha256("deployment.zip")
+
+  environment {
+    variables = {
+      S3_BUCKET    = aws_s3_bucket.data_bucket.id
+      CLEAN_PREFIX = "normalized-data"
+      LOCAL_MOCK   = "false"
+    }
+  }
+}
+
+# Expose the retrieval Lambda with a simple HTTPS endpoint for demos
+# and interoperability with other teams.
+resource "aws_lambda_function_url" "retriever_url" {
+  function_name      = aws_lambda_function.data_retriever.function_name
+  authorization_type = "NONE"
+}
+
+# -----------------------------------------------------------------------------
+# Helpful outputs
+# -----------------------------------------------------------------------------
+
+output "bucket_name" {
+  description = "Shared S3 bucket used by the collector and retriever"
+  value       = aws_s3_bucket.data_bucket.id
+}
+
+output "retrieval_function_url" {
+  description = "Public HTTPS URL for the retrieval Lambda"
+  value       = aws_lambda_function_url.retriever_url.function_url
+}
