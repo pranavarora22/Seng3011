@@ -60,3 +60,25 @@ resource "aws_lambda_function" "data_collector" {
     }
   }
 }
+
+# ---------- EventBridge weekly schedule ----------
+
+resource "aws_cloudwatch_event_rule" "weekly_trigger" {
+  name                = "seng3011-weekly-trigger"
+  description         = "Trigger data collector Lambda every Monday at 00:00 UTC"
+  schedule_expression = "cron(0 0 ? * MON *)"
+}
+
+resource "aws_cloudwatch_event_target" "lambda_target" {
+  rule      = aws_cloudwatch_event_rule.weekly_trigger.name
+  target_id = "seng3011DataCollector"
+  arn       = aws_lambda_function.data_collector.arn
+}
+
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.data_collector.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.weekly_trigger.arn
+}
