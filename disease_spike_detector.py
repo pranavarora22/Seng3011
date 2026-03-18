@@ -6,39 +6,37 @@ from datetime import datetime
 
 
 def classify_level(n):
-    if n < 1.5:
+    if n < 1.3:
         return "LOW"
-    elif n < 2.5:
+    elif n < 2:
         return "MEDIUM"
     else:
         return "HIGH"
 
 
 def interpret_signal(level, trend):
-    """
-    Maps the two classifications into the final signal.
-    """
+    # Normalize for safety (in case inputs are not exact strings)
+    level_norm = str(level).upper() if level is not None else ""
+    trend_norm = str(trend).upper() if trend is not None else ""
 
     signal_map = {
+        ("HIGH", "HIGH"): "High & Accelerating",
+        ("HIGH", "MEDIUM"): "High & Plateaued",
+        ("HIGH", "LOW"): "High but Receding",
 
-        ("HIGH", "HIGH"): "High and getting higher",
-        ("HIGH", "MEDIUM"): "High and staying consistently high",
-        ("HIGH", "LOW"): "High but now getting lower",
+        ("MEDIUM", "HIGH"): "Medium & Surging",
+        ("MEDIUM", "MEDIUM"): "Medium & Stable",
+        ("MEDIUM", "LOW"): "Medium & Declining",
 
-        ("MEDIUM", "HIGH"): "Medium but getting high recently",
-        ("MEDIUM", "MEDIUM"): "Medium and staying there consistently",
-        ("MEDIUM", "LOW"): "Medium but getting lower from the past weeks",
-
-        ("LOW", "HIGH"): "Low but getting higher",
-        ("LOW", "MEDIUM"): "Low but approaching medium level",
-        ("LOW", "LOW"): "Low and staying low / declining"
+        ("LOW", "HIGH"): "Low but Emerging",
+        ("LOW", "MEDIUM"): "Low & Increasing",
+        ("LOW", "LOW"): "Low & Contained"
     }
 
-    return signal_map.get((level, trend), "Unknown")
+    return signal_map.get((level_norm, trend_norm), "Unknown")
 
 
 def build_analytical_model(records):
-
     grouped = defaultdict(list)
 
     # Group by country
@@ -54,55 +52,61 @@ def build_analytical_model(records):
     analysed_events = []
 
     for country, group_records in grouped.items():
+        # Safely sort by epi_week (handle missing values)
+        group_records.sort(key=lambda r: r.get("payload", {}).get("epi_week", 0))
 
-        group_records.sort(key=lambda r: r["payload"]["epi_week"])
+        # Need at least 5 weeks to compute 4-week trend
+        if len(group_records) < 5:
+            continue
 
-        all_cases = [r["payload"]["cases_detected"] for r in group_records]
+        # Latest week only
+        latest = group_records[-1]
+        payload = latest.get("payload", {})
 
-        long_term_avg = sum(all_cases) / len(all_cases) if all_cases else 0
+        current_cases = payload.get("cases_detected", 0)
 
-        for i in range(len(group_records)):
+        # Long-term average
+        total = 0
+        for r in group_records:
+            total += r.get("payload", {}).get("cases_detected", 0)
 
-            if i < 4:
-                continue
+        long_term_avg = total / len(group_records) if len(group_records) > 0 else 0
 
-            record = group_records[i]
-            payload = record["payload"]
+        # Previous 4 weeks (excluding current)
+        prev_total = 0
+        for r in group_records[-5:-1]:
+            prev_total += r.get("payload", {}).get("cases_detected", 0)
 
-            current_cases = payload["cases_detected"]
+        recent_avg = prev_total / 4 if 4 > 0 else 0
 
-            prev_4 = group_records[i-4:i]
-            prev_cases = [r["payload"]["cases_detected"] for r in prev_4]
+        # Ratios
+        n1 = current_cases / long_term_avg if long_term_avg > 0 else 1
+        n2 = current_cases / recent_avg if recent_avg > 0 else 1
 
-            recent_avg = sum(prev_cases) / len(prev_cases)
+        level = classify_level(n1)
+        trend = classify_level(n2)
 
-            n1 = current_cases / long_term_avg if long_term_avg > 0 else 1
-            n2 = current_cases / recent_avg if recent_avg > 0 else 1
+        signal = interpret_signal(level, trend)
 
-            level = classify_level(n1)
-            trend = classify_level(n2)
-
-            signal = interpret_signal(level, trend)
-
-            analysed_event = {
-                "event_id": f"influenza-{country}-{payload['epi_week']}-signal",
-                "timestamp": datetime.utcnow().isoformat() + "Z",
-                "event_type": "PUBLIC_HEALTH_SIGNAL",
-                "domain": "HEALTH",
-                "payload": {
-                    "disease": "influenza",
-                    "country": country,
-                    "epi_week": payload["epi_week"],
-                    "current_cases": current_cases,
-                    "long_term_avg": round(long_term_avg, 2),
-                    "recent_4wk_avg": round(recent_avg, 2),
-                    "n1_ratio": round(n1, 2),
-                    "n2_ratio": round(n2, 2),
-                    "signal": signal
-                }
+        analysed_event = {
+            "event_id": f"influenza-{country}-{payload.get('epi_week', 'unknown')}-current-signal",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "event_type": "PUBLIC_HEALTH_SIGNAL",
+            "domain": "HEALTH",
+            "payload": {
+                "disease": "influenza",
+                "country": country,
+                "epi_week": payload.get("epi_week"),
+                "current_cases": current_cases,
+                "long_term_avg": round(long_term_avg, 2),
+                "recent_4wk_avg": round(recent_avg, 2),
+                "n1_ratio": round(n1, 2),
+                "n2_ratio": round(n2, 2),
+                "signal": signal
             }
+        }
 
-            analysed_events.append(analysed_event)
+        analysed_events.append(analysed_event)
 
     return analysed_events
 
@@ -114,9 +118,9 @@ if __name__ == "__main__":
 
     records = data["items"] if isinstance(data, dict) and "items" in data else data
 
-    analysed = build_analytical_model(records)
+    analysed_events = build_analytical_model(records)
 
     with open("analysed_events.json", "w", encoding="utf-8") as f:
-        json.dump(analysed, f, indent=2)
+        json.dump(analysed_events, f, indent=2)
 
-    print(f"Generated {len(analysed)} analysed events.")
+    print(f"Generated {len(analysed_events)} analysed events.")

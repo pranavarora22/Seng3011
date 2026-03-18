@@ -6,43 +6,30 @@ from urllib.parse import parse_qs
 
 import boto3
 
-# Configure logging so messages appear in CloudWatch when deployed.
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-# The bucket name is supplied by Terraform in AWS, or can be exported manually
-# when running an S3 integration test from your own machine.
+
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
-
-# Folder/prefix inside the bucket (or mock folder) that stores clean datasets.
 CLEAN_PREFIX = os.environ.get("CLEAN_PREFIX", "normalized-data")
-
-# Local fallback used for fast unit/integration tests without AWS.
 LOCAL_CLEAN_PATH = os.path.join("tests", "mock_s3", "normalized-data")
 
-# Current MVP supports influenza only because that is what the updated
-# collection Lambda produces.
 VALID_DISEASES = {"influenza"}
 
-# Reuse a single S3 client across invocations.
 s3 = boto3.client("s3")
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 def is_local_mock() -> bool:
-    """Return True when running local tests against local fixture files."""
     return os.environ.get("LOCAL_MOCK", "").strip().lower() == "true"
 
 
-
 def response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
-    """Build a standard Lambda proxy response."""
     return {
         "statusCode": status_code,
         "headers": {"Content-Type": "application/json"},
@@ -50,21 +37,9 @@ def response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 def parse_query_params(event: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Parse and validate supported query parameters.
-
-    Supported filters:
-    - disease: currently only influenza
-    - country_code: WHO 3-letter country code, e.g. AUS
-    - start_epi_week: lower inclusive bound, format YYYY-W##
-    - end_epi_week: upper inclusive bound, format YYYY-W##
-    - limit: positive integer max number of rows to return
-    """
     params = dict(event.get("queryStringParameters") or {})
 
-    # Lambda Function URLs / HTTP APIs may provide a raw query string instead.
     if not params and event.get("rawQueryString"):
         raw = parse_qs(event["rawQueryString"])
         params = {k: v[0] for k, v in raw.items() if v}
@@ -82,10 +57,26 @@ def parse_query_params(event: Dict[str, Any]) -> Dict[str, Any]:
                 f"Invalid disease '{disease}'. Expected one of: {sorted(VALID_DISEASES)}"
             )
 
+    # ✅ FIXED HERE — supports both "AUS" and "Australia"
+    COUNTRY_MAP = {
+        "australia": "AUS",
+        "india": "IND",
+        "usa": "USA",
+        "united states": "USA"
+    }
+
     if country_code:
-        country_code = country_code.strip().upper()
-        if len(country_code) != 3 or not country_code.isalpha():
-            raise ValueError("country_code must be a 3-letter code, e.g. AUS")
+        country_code = country_code.strip()
+
+        if len(country_code) == 3:
+            country_code = country_code.upper()
+        else:
+            mapped = COUNTRY_MAP.get(country_code.lower())
+            if not mapped:
+                raise ValueError(
+                    "Invalid country. Use 3-letter code (e.g. AUS) or supported name."
+                )
+            country_code = mapped
 
     for label, value in (("start_epi_week", start_epi_week), ("end_epi_week", end_epi_week)):
         if value:
@@ -120,13 +111,7 @@ def parse_query_params(event: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-
 def load_records_for_disease(disease: str) -> List[Dict[str, Any]]:
-    """
-    Load normalized disease records from either:
-    - local fixtures when LOCAL_MOCK=true, or
-    - S3 when running in AWS / S3 integration tests.
-    """
     filename = f"{disease}_clean.json"
 
     if is_local_mock():
@@ -145,9 +130,7 @@ def load_records_for_disease(disease: str) -> List[Dict[str, Any]]:
     return json.loads(obj["Body"].read().decode("utf-8"))
 
 
-
 def record_matches(record: Dict[str, Any], filters: Dict[str, Any]) -> bool:
-    """Return True if a single record matches all supplied filters."""
     payload = record.get("payload", {})
 
     if filters["country_code"] and payload.get("country_code") != filters["country_code"]:
@@ -165,26 +148,12 @@ def record_matches(record: Dict[str, Any], filters: Dict[str, Any]) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
-# Lambda handler
-# ---------------------------------------------------------------------------
-
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """
-    Main retrieval handler.
-
-    Workflow:
-    1. Parse request filters
-    2. Load normalized influenza records
-    3. Filter and sort results
-    4. Return a JSON response
-    """
     try:
         filters = parse_query_params(event or {})
     except ValueError as exc:
         return response(400, {"error": str(exc)})
 
-    # Default to influenza if the client omits disease.
     diseases = [filters["disease"]] if filters["disease"] else sorted(VALID_DISEASES)
 
     try:
@@ -194,7 +163,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             records = load_records_for_disease(disease)
             matched.extend([record for record in records if record_matches(record, filters)])
 
-        # Sort results so responses are stable and easy to compare in tests.
         matched.sort(
             key=lambda item: (
                 item["payload"].get("epi_week", ""),
