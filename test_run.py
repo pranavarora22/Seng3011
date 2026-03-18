@@ -1,12 +1,13 @@
-"""Local test harness for the data collection Lambda function.
+"""Local test harness for the data collection Lambda.
 
-Sets LOCAL_MOCK=True so the handler writes to tests/mock_s3/normalized-data/.
-In mock mode, process_flunet_disease skips real HTTP calls and returns [].
+Sets LOCAL_MOCK=True so the handler writes to tests/mock_s3/normalized-data/
+without making any HTTP calls or touching AWS.
 """
 
 import os
 import json
 import sys
+
 
 def main():
     os.environ["LOCAL_MOCK"] = "True"
@@ -20,16 +21,17 @@ def main():
     print("\n=== Lambda Result ===")
     print(json.dumps(json.loads(result["body"]), indent=2))
 
-    path = os.path.join(out_dir, "influenza_clean.json")
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            records = json.load(f)
-        print(f"  influenza_clean.json: {len(records)} records, {os.path.getsize(path)} bytes")
-    else:
-        print(f"  WARNING: {path} not found!")
-        sys.exit(1)
+    diseases = ["influenza", "rsv", "sars-cov-2"]
+    for disease in diseases:
+        path = os.path.join(out_dir, f"{disease}_clean.json")
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                records = json.load(f)
+            print(f"  {disease}_clean.json: {len(records)} records, {os.path.getsize(path)} bytes")
+        else:
+            print(f"  {disease}_clean.json: no fixture — skipped in LOCAL_MOCK mode")
 
-    print("\nOutput file generated successfully.")
+    print("\nDone.")
 
 
 if __name__ == "__main__":

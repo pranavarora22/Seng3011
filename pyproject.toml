@@ -1,0 +1,2 @@
+[tool.pytest.ini_options]
+tdd_guard_project_root = "/mnt/c/Users/Kalib Ismail/Desktop/Code/seng3011/Seng3011"

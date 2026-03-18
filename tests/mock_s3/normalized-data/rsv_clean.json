@@ -1,0 +1,26 @@
+[
+  {
+    "event_id": "rsv-AUS-2025-W01",
+    "timestamp": "2025-01-06T00:00:00+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "rsv",
+      "country_code": "AUS",
+      "epi_week": "2025-W01",
+      "cases_detected": 150
+    }
+  },
+  {
+    "event_id": "rsv-AUS-2025-W02",
+    "timestamp": "2025-01-13T00:00:00+00:00",
+    "event_type": "PUBLIC_HEALTH_RECORD",
+    "domain": "HEALTH",
+    "payload": {
+      "disease": "rsv",
+      "country_code": "AUS",
+      "epi_week": "2025-W02",
+      "cases_detected": 180
+    }
+  }
+]

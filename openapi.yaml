@@ -1,0 +1,250 @@
+openapi: "3.0.3"
+info:
+  title: Disease Surveillance API
+  description: |
+    WHO disease surveillance microservice providing epidemiological records and
+    z-score risk signals for influenza, RSV, and SARS-CoV-2.
+
+    **Two endpoints:**
+    - **Retrieval API** – raw weekly case records from WHO FluNet / NCOV
+    - **Analytical API** – z-score risk signals computed from full history
+
+    Epi-week format: `YYYY-Www` (e.g. `2025-W03`)
+  version: "1.0.0"
+  contact:
+    name: SENG3011 Team
+
+servers:
+  - url: "{retrieval_url}"
+    description: Retrieval Lambda Function URL
+    variables:
+      retrieval_url:
+        default: https://<retrieval-function-url>
+  - url: "{analytical_url}"
+    description: Analytical Lambda Function URL
+    variables:
+      analytical_url:
+        default: https://<analytical-function-url>
+
+tags:
+  - name: Retrieval
+    description: Query raw disease case records
+  - name: Analytical
+    description: Query z-score risk signals
+
+paths:
+  /:
+    get:
+      tags: [Retrieval]
+      summary: Query disease records
+      description: |
+        Returns normalised weekly case records. At least `disease` is recommended;
+        omitting it triggers a full table scan (slow, high cost).
+      operationId: getRecords
+      parameters:
+        - $ref: "#/components/parameters/disease"
+        - $ref: "#/components/parameters/country_code"
+        - $ref: "#/components/parameters/start_epi_week"
+        - $ref: "#/components/parameters/end_epi_week"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Matching records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    example: 2
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublicHealthRecord"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /signals:
+    get:
+      tags: [Analytical]
+      summary: Query z-score risk signals
+      description: |
+        Returns one signal per (disease, country) group representing the most
+        recent epi-week scored against the full historical baseline.
+      operationId: getSignals
+      parameters:
+        - $ref: "#/components/parameters/disease"
+        - $ref: "#/components/parameters/country_code"
+        - $ref: "#/components/parameters/start_epi_week"
+        - $ref: "#/components/parameters/end_epi_week"
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Risk signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    example: 1
+                  signals:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PublicHealthSignal"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  parameters:
+    disease:
+      name: disease
+      in: query
+      required: false
+      description: Disease name (case-insensitive)
+      schema:
+        type: string
+        enum: [influenza, rsv, sars-cov-2]
+      example: influenza
+
+    country_code:
+      name: country_code
+      in: query
+      required: false
+      description: ISO 3166-1 alpha-3 country code, or common English name
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 50
+      example: AUS
+
+    start_epi_week:
+      name: start_epi_week
+      in: query
+      required: false
+      description: Inclusive start of epi-week range (`YYYY-Www`)
+      schema:
+        type: string
+        pattern: "^\\d{4}-W\\d{2}$"
+      example: "2024-W01"
+
+    end_epi_week:
+      name: end_epi_week
+      in: query
+      required: false
+      description: Inclusive end of epi-week range (`YYYY-Www`)
+      schema:
+        type: string
+        pattern: "^\\d{4}-W\\d{2}$"
+      example: "2024-W52"
+
+    limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of results (1–1000, default 100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+
+  schemas:
+    PublicHealthRecord:
+      type: object
+      required: [event_id, timestamp, event_type, domain, payload]
+      properties:
+        event_id:
+          type: string
+          example: influenza-AUS-2025-W03
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-20T00:00:00+00:00"
+        event_type:
+          type: string
+          enum: [PUBLIC_HEALTH_RECORD]
+        domain:
+          type: string
+          enum: [HEALTH]
+        payload:
+          type: object
+          required: [disease, country_code, epi_week, cases_detected]
+          properties:
+            disease:
+              type: string
+              example: influenza
+            country_code:
+              type: string
+              example: AUS
+            epi_week:
+              type: string
+              example: "2025-W03"
+            cases_detected:
+              type: integer
+              example: 142
+
+    PublicHealthSignal:
+      type: object
+      required: [event_id, timestamp, event_type, domain, payload]
+      properties:
+        event_id:
+          type: string
+          example: influenza-AUS-2025-W03-signal
+        timestamp:
+          type: string
+          format: date-time
+        event_type:
+          type: string
+          enum: [PUBLIC_HEALTH_SIGNAL]
+        domain:
+          type: string
+          enum: [HEALTH]
+        payload:
+          type: object
+          required:
+            [disease, country_code, epi_week, current_cases,
+             historical_mean, historical_std_dev, z_score, risk_level]
+          properties:
+            disease:
+              type: string
+              example: influenza
+            country_code:
+              type: string
+              example: AUS
+            epi_week:
+              type: string
+              example: "2025-W03"
+            current_cases:
+              type: integer
+              example: 850
+            historical_mean:
+              type: number
+              format: float
+              example: 312.4
+            historical_std_dev:
+              type: number
+              format: float
+              example: 187.2
+            z_score:
+              type: number
+              format: float
+              nullable: true
+              example: 2.87
+            risk_level:
+              type: string
+              enum: [LOW, MEDIUM, HIGH, CRITICAL, STABLE, INSUFFICIENT_DATA]
+              example: HIGH
+
+  responses:
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
