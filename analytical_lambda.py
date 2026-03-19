@@ -225,12 +225,12 @@ _SWAGGER_UI_HTML = """<!DOCTYPE html>
 <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
 <script>
 const spec = {spec_json};
-SwaggerUIBundle({{
+SwaggerUIBundle({
   spec: spec,
   dom_id: '#swagger-ui',
   presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
   layout: 'BaseLayout'
-}});
+});
 </script>
 </body>
 </html>"""
