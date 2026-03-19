@@ -64,7 +64,7 @@ def compute_signals(records: list) -> list:
         accel_score = max(0, min(acceleration, 1)) * 100
 
         persistence_weeks = 0
-        for g in reversed(group):
+        for g in reversed(history):
             if g["cases_detected"] > s_mean:
                 persistence_weeks += 1
             else:

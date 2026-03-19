@@ -340,6 +340,23 @@ class TestComputeSignals(unittest.TestCase):
         countries = {s["payload"]["country_code"] for s in signals}
         self.assertEqual(countries, {"AUS", "IND"})
 
+    def test_persistence_does_not_count_current_week(self):
+        """persistence_weeks counts prior history only, not the current week being scored.
+
+        If current week is also counted, a single-week spike produces persistence=1
+        even with no prior elevated weeks. Persistence should reflect sustained
+        historical trend, not double-count the current data point.
+        """
+        from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
+
+        # All history at baseline, only current week elevated.
+        # Persistence of prior history = 0 (no prior weeks above mean).
+        records = make_records(MIN_WEEKS_REQUIRED + 4, base=100)
+        records[-1]["payload"]["cases_detected"] = 10000  # only current is elevated
+
+        signal = compute_signals(records)[0]
+        self.assertEqual(signal["payload"]["persistence_weeks"], 0)
+
     def test_seasonal_baseline_uses_same_week(self):
         """seasonal_mean must reflect only prior years' same week, not all history."""
         from analytical_lambda import compute_signals
