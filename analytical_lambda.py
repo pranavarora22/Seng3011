@@ -1,7 +1,6 @@
 import os
 import json
 import logging
-from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, pstdev
 
@@ -15,8 +14,6 @@ LOCAL_CLEAN_PATH = os.path.join("tests", "mock_s3", "normalized-data")
 
 VALID_DISEASES = {"influenza", "rsv", "sars-cov-2"}
 
-# Minimum weeks of history required to compute a meaningful z-score
-MIN_RECORDS_FOR_ZSCORE = 8
 MIN_WEEKS_REQUIRED = 26  # ~6 months of weekly data for meaningful seasonal baseline
 
 
@@ -174,100 +171,6 @@ def classify_risk_score(score: float, prev_score: float | None = None) -> str:
     return "Severe Outbreak"
 
 
-def classify_z_score(z: float) -> str:
-    if z < 1.0:
-        return "LOW"
-    if z < 2.0:
-        return "MEDIUM"
-    if z < 3.0:
-        return "HIGH"
-    return "CRITICAL"
-
-
-def build_signal_record(
-    disease: str,
-    country_code: str,
-    epi_week: str,
-    current_cases: int,
-    hist_mean: float,
-    hist_std: float,
-    z_score: float | None,
-    risk_level: str,
-    timestamp: str,
-) -> dict:
-    return {
-        "event_id": f"{disease}-{country_code}-{epi_week}-signal",
-        "timestamp": timestamp,
-        "event_type": "PUBLIC_HEALTH_SIGNAL",
-        "domain": "HEALTH",
-        "payload": {
-            "disease": disease,
-            "country_code": country_code,
-            "epi_week": epi_week,
-            "current_cases": current_cases,
-            "historical_mean": round(hist_mean, 2),
-            "historical_std_dev": round(hist_std, 2),
-            "z_score": round(z_score, 4) if z_score is not None else None,
-            "risk_level": risk_level,
-        },
-    }
-
-
-def compute_z_scores(records: list) -> list:
-    """Compute z-score risk signals from normalised disease records.
-
-    Groups by (disease, country_code), uses the full history as the baseline,
-    and scores the most recent epi_week per group.
-
-    Uses population std dev (pstdev) because the stored records represent the
-    complete population of observed weeks, not a sample.
-    """
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    groups: dict[tuple, list] = defaultdict(list)
-    for rec in records:
-        p = rec["payload"]
-        groups[(p["disease"], p["country_code"])].append(p)
-
-    signals = []
-    for (disease, country_code), group in groups.items():
-        group.sort(key=lambda x: x["epi_week"])
-        case_counts = [g["cases_detected"] for g in group]
-        current = group[-1]
-
-        if len(group) < MIN_RECORDS_FOR_ZSCORE:
-            signals.append(
-                build_signal_record(
-                    disease, country_code, current["epi_week"],
-                    current["cases_detected"], 0.0, 0.0, None,
-                    "INSUFFICIENT_DATA", timestamp,
-                )
-            )
-            continue
-
-        hist_mean = mean(case_counts)
-        hist_std = pstdev(case_counts)
-
-        if hist_std == 0:
-            signals.append(
-                build_signal_record(
-                    disease, country_code, current["epi_week"],
-                    current["cases_detected"], hist_mean, 0.0, 0.0,
-                    "STABLE", timestamp,
-                )
-            )
-            continue
-
-        z = (current["cases_detected"] - hist_mean) / hist_std
-        signals.append(
-            build_signal_record(
-                disease, country_code, current["epi_week"],
-                current["cases_detected"], hist_mean, hist_std, z,
-                classify_z_score(z), timestamp,
-            )
-        )
-
-    return signals
 
 
 def parse_query_params(event: dict) -> dict:

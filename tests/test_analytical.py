@@ -27,100 +27,94 @@ def make_record(disease, country, epi_week, cases):
 
 class TestClassifyZScore(unittest.TestCase):
     def test_low(self):
-        from analytical_lambda import classify_z_score
-        self.assertEqual(classify_z_score(0.5), "LOW")
+        from analytical_lambda import classify_risk_score
+        self.assertEqual(classify_risk_score(10), "Normal")
 
     def test_medium(self):
-        from analytical_lambda import classify_z_score
-        self.assertEqual(classify_z_score(1.5), "MEDIUM")
+        from analytical_lambda import classify_risk_score
+        self.assertEqual(classify_risk_score(35), "Elevated")
 
     def test_high(self):
-        from analytical_lambda import classify_z_score
-        self.assertEqual(classify_z_score(2.5), "HIGH")
+        from analytical_lambda import classify_risk_score
+        self.assertEqual(classify_risk_score(60), "Emerging Outbreak")
 
     def test_critical(self):
-        from analytical_lambda import classify_z_score
-        self.assertEqual(classify_z_score(3.0), "CRITICAL")
+        from analytical_lambda import classify_risk_score
+        self.assertEqual(classify_risk_score(90), "Severe Outbreak")
 
     def test_boundary_low_medium(self):
-        from analytical_lambda import classify_z_score
-        self.assertEqual(classify_z_score(1.0), "MEDIUM")
+        from analytical_lambda import classify_risk_score
+        self.assertEqual(classify_risk_score(25), "Elevated")
 
 
 class TestComputeZScores(unittest.TestCase):
-    def _make_records(self, n, base=100, spike=None):
-        """Build n weekly records for AUS influenza; optionally spike the last week."""
-        records = []
-        for i in range(n):
-            week = f"2025-W{i + 1:02d}"
-            cases = spike if (spike and i == n - 1) else base
-            records.append(make_record("influenza", "AUS", week, cases))
-        return records
+    """Retained class name; now covers compute_signals (replacement for compute_z_scores)."""
 
     def test_insufficient_data_below_threshold(self):
-        """Groups with fewer than MIN_RECORDS_FOR_ZSCORE weeks get INSUFFICIENT_DATA."""
-        from analytical_lambda import compute_z_scores, MIN_RECORDS_FOR_ZSCORE
+        """Groups with fewer than MIN_WEEKS_REQUIRED weeks get INSUFFICIENT_DATA."""
+        from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
 
-        records = self._make_records(MIN_RECORDS_FOR_ZSCORE - 1)
-        signals = compute_z_scores(records)
+        records = make_records(MIN_WEEKS_REQUIRED - 1)
+        signals = compute_signals(records)
 
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0]["payload"]["risk_level"], "INSUFFICIENT_DATA")
-        self.assertIsNone(signals[0]["payload"]["z_score"])
 
     def test_stable_when_all_cases_identical(self):
-        """If all case counts are the same, std dev is 0 → STABLE."""
-        from analytical_lambda import compute_z_scores
+        """Stable baseline (std=0) still produces a valid signal, not an error."""
+        from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
 
-        records = self._make_records(10, base=100)
-        signals = compute_z_scores(records)
-
-        self.assertEqual(signals[0]["payload"]["risk_level"], "STABLE")
-        self.assertEqual(signals[0]["payload"]["z_score"], 0.0)
-
-    def test_critical_on_large_spike(self):
-        """A large spike in the most recent week should produce CRITICAL risk."""
-        from analytical_lambda import compute_z_scores
-
-        records = self._make_records(10, base=100, spike=10000)
-        signals = compute_z_scores(records)
-
-        self.assertEqual(signals[0]["payload"]["risk_level"], "CRITICAL")
-        self.assertGreaterEqual(signals[0]["payload"]["z_score"], 3.0)
-
-    def test_scores_most_recent_week_only(self):
-        """Only the most recent epi_week per group should appear in output."""
-        from analytical_lambda import compute_z_scores
-
-        records = self._make_records(10, base=100, spike=500)
-        signals = compute_z_scores(records)
+        records = make_records(MIN_WEEKS_REQUIRED + 4, base=100)
+        signals = compute_signals(records)
 
         self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0]["payload"]["epi_week"], "2025-W10")
+        self.assertIn(signals[0]["payload"]["risk_level"], ["Normal", "Elevated", "Declining"])
+
+    def test_critical_on_large_spike(self):
+        """A large spike on current week should produce a high risk_score."""
+        from analytical_lambda import compute_signals
+
+        records = [make_record("influenza", "AUS", f"{y}-W01", cases)
+                   for y, cases in zip(range(2020, 2023), [50, 100, 150])]
+        for i in range(2, 30):
+            records.append(make_record("influenza", "AUS", f"2020-W{i:02d}", 100))
+        records.append(make_record("influenza", "AUS", "2023-W01", 10000))
+
+        signal = compute_signals(records)[0]
+        self.assertGreater(signal["payload"]["risk_score"], 50)
+
+    def test_scores_most_recent_week_only(self):
+        """Only one signal per (disease, country) group."""
+        from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
+
+        records = make_records(MIN_WEEKS_REQUIRED + 4, base=100)
+        signals = compute_signals(records)
+
+        self.assertEqual(len(signals), 1)
 
     def test_groups_by_disease_and_country(self):
         """Records for different countries produce separate signals."""
-        from analytical_lambda import compute_z_scores
+        from analytical_lambda import compute_signals
 
-        aus = self._make_records(10, base=100)
-        ind = [make_record("influenza", "IND", f"2025-W{i+1:02d}", 200) for i in range(10)]
-        signals = compute_z_scores(aus + ind)
+        records = make_records(30, base=100, country="AUS") + make_records(30, base=200, country="IND")
+        signals = compute_signals(records)
 
         countries = {s["payload"]["country_code"] for s in signals}
         self.assertEqual(countries, {"AUS", "IND"})
 
     def test_output_schema(self):
-        """Signal records must include all required payload fields."""
-        from analytical_lambda import compute_z_scores
+        """Signal payload must contain all required fields."""
+        from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
 
-        records = self._make_records(10, base=100, spike=500)
-        signal = compute_z_scores(records)[0]
+        records = make_records(MIN_WEEKS_REQUIRED + 4, base=100)
+        signal = compute_signals(records)[0]
 
         self.assertEqual(signal["event_type"], "PUBLIC_HEALTH_SIGNAL")
-        self.assertEqual(signal["domain"], "HEALTH")
         required = {
             "disease", "country_code", "epi_week", "current_cases",
-            "historical_mean", "historical_std_dev", "z_score", "risk_level",
+            "seasonal_mean", "seasonal_std_dev", "seasonal_z_score",
+            "growth_rate", "acceleration", "persistence_weeks",
+            "risk_score", "risk_level",
         }
         self.assertTrue(required.issubset(signal["payload"].keys()))
 
@@ -217,6 +211,23 @@ def make_records(n, base=100, spike=None, disease="influenza", country="AUS", st
         cases = spike if (spike is not None and i == n - 1) else base
         records.append(make_record(disease, country, epi_week, cases))
     return records
+
+
+class TestRemovedLegacyFunctions(unittest.TestCase):
+    def test_classify_z_score_is_removed(self):
+        """classify_z_score is superseded by classify_risk_score and must not exist."""
+        import analytical_lambda
+        self.assertFalse(hasattr(analytical_lambda, "classify_z_score"))
+
+    def test_compute_z_scores_is_removed(self):
+        """compute_z_scores is superseded by compute_signals and must not exist."""
+        import analytical_lambda
+        self.assertFalse(hasattr(analytical_lambda, "compute_z_scores"))
+
+    def test_min_records_for_zscore_is_removed(self):
+        """MIN_RECORDS_FOR_ZSCORE is superseded by MIN_WEEKS_REQUIRED and must not exist."""
+        import analytical_lambda
+        self.assertFalse(hasattr(analytical_lambda, "MIN_RECORDS_FOR_ZSCORE"))
 
 
 class TestComputeSignals(unittest.TestCase):
