@@ -114,15 +114,22 @@ def is_local_mock() -> bool:
     return os.environ.get("LOCAL_MOCK", "").strip().lower() == "true"
 
 
-def load_records(disease: str) -> list:
-    """Load all normalised records for a disease from DynamoDB or local fixture."""
+def load_records(disease: str, country_code: str | None = None) -> list:
+    """Load normalised records for a disease from DynamoDB or local fixture.
+
+    When country_code is provided, queries the main table by pk (disease#country)
+    instead of scanning the full GSI — much faster for single-country requests.
+    """
     if is_local_mock():
         path = os.path.join(LOCAL_CLEAN_PATH, f"{disease}_clean.json")
         if not os.path.exists(path):
             logger.warning("%s: no local fixture at %s", disease, path)
             return []
         with open(path, encoding="utf-8") as f:
-            return json.load(f)
+            raw = json.load(f)
+        if country_code:
+            raw = [r for r in raw if r.get("payload", {}).get("country_code") == country_code]
+        return raw
 
     import boto3
     from boto3.dynamodb.conditions import Key
@@ -130,21 +137,36 @@ def load_records(disease: str) -> list:
     dynamo = boto3.resource("dynamodb")
     table = dynamo.Table(DYNAMO_TABLE)
 
-    # Paginate through all records for this disease via GSI 1
     items = []
     last_key = None
-    while True:
-        kwargs = {
-            "IndexName": "disease-week-index",
-            "KeyConditionExpression": Key("disease").eq(disease),
-        }
-        if last_key:
-            kwargs["ExclusiveStartKey"] = last_key
-        resp = table.query(**kwargs)
-        items.extend(resp.get("Items", []))
-        last_key = resp.get("LastEvaluatedKey")
-        if not last_key:
-            break
+
+    if country_code:
+        # Fast path: query main table by pk = disease#country_code
+        while True:
+            kwargs = {
+                "KeyConditionExpression": Key("pk").eq(f"{disease}#{country_code}"),
+            }
+            if last_key:
+                kwargs["ExclusiveStartKey"] = last_key
+            resp = table.query(**kwargs)
+            items.extend(resp.get("Items", []))
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
+    else:
+        # Full load: paginate through all records for this disease via GSI 1
+        while True:
+            kwargs = {
+                "IndexName": "disease-week-index",
+                "KeyConditionExpression": Key("disease").eq(disease),
+            }
+            if last_key:
+                kwargs["ExclusiveStartKey"] = last_key
+            resp = table.query(**kwargs)
+            items.extend(resp.get("Items", []))
+            last_key = resp.get("LastEvaluatedKey")
+            if not last_key:
+                break
 
     return [
         {
@@ -252,7 +274,7 @@ def lambda_handler(event, context):
 
     for disease in diseases:
         try:
-            records = load_records(disease)
+            records = load_records(disease, filters["country_code"])
             if not records:
                 all_signals.append({"disease": disease, "error": "data unavailable"})
                 continue

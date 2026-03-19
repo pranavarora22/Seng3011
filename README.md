@@ -12,15 +12,15 @@ EventBridge (weekly)
     → Data Collector Lambda      — fetches from WHO APIs, writes S3 + DynamoDB
 
 DynamoDB (seng3011-disease-records)
-    → Retrieval Lambda URL       — query raw records by disease / country / week
-    → Analytical Lambda URL      — z-score risk signals per disease + country
+    → Retrieval API Gateway      — query raw records by disease / country / week
+    → Analytical API Gateway     — z-score risk signals per disease + country
 ```
 
 ---
 
 ## API
 
-Both APIs are public HTTPS Lambda Function URLs. Get the URLs after `terraform apply`:
+Both APIs are public HTTPS endpoints via API Gateway HTTP APIs. Get the URLs after deploying:
 
 ```bash
 terraform output retrieval_function_url
@@ -53,7 +53,7 @@ Z-score risk signals — one per (disease, country) for the most recent epi-week
 GET <analytical_url>?disease=influenza&country_code=AUS
 ```
 
-Risk levels: `LOW` (z<1) · `MEDIUM` (1≤z<2) · `HIGH` (2≤z<3) · `CRITICAL` (z≥3) · `STABLE` · `INSUFFICIENT_DATA`
+Risk levels: `Normal` · `Elevated` · `Emerging Outbreak` · `Sustained Outbreak` · `Severe Outbreak` · `Declining` · `INSUFFICIENT_DATA`
 
 **Interactive docs:** `GET <analytical_url>/docs`
 
@@ -108,14 +108,19 @@ python test_run.py
 ## Deployment
 
 ```bash
-# Package Lambda code
-pip install -r requirements.txt --target package/
-cp *.py openapi.yaml package/
-cd package && zip -r ../deployment.zip . && cd ..
+# One-command deploy (builds zip + imports existing resources + applies)
+./deploy.sh                  # AWS Academy (default)
+./deploy.sh --personal       # Personal AWS account
 
-# Deploy
+# Or manually:
+./build.sh                   # Package Lambda code into deployment.zip
 terraform init
-terraform apply
+terraform apply              # AWS Academy
+terraform apply -var="use_lab_role=false"  # Personal account
 ```
 
-Requires AWS Academy credentials active in your session.
+After deploying, run the data collector Lambda once to populate the database:
+
+**Console → Lambda → `seng3011-data-collector` → Test → `{}` → Run**
+
+This fetches all historical data (~3 minutes, ~177k records).
