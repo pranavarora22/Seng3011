@@ -15,8 +15,99 @@ LOCAL_CLEAN_PATH = os.path.join("tests", "mock_s3", "normalized-data")
 
 VALID_DISEASES = {"influenza", "rsv", "sars-cov-2"}
 
-# Minimum weeks of history required to compute a meaningful z-score
-MIN_RECORDS_FOR_ZSCORE = 8
+MIN_WEEKS_REQUIRED = 26  # ~6 months of weekly data for meaningful seasonal baseline
+
+
+def compute_signals(records: list) -> list:
+    groups: dict = defaultdict(list)
+    for rec in records:
+        p = rec["payload"]
+        groups[(p["disease"], p["country_code"])].append(p)
+
+    signals = []
+    for (disease, country_code), group in groups.items():
+        group.sort(key=lambda x: tuple(int(p) for p in x["epi_week"].replace("-W", "-").split("-")))
+        current = group[-1]
+
+        if len(group) < MIN_WEEKS_REQUIRED:
+            signals.append({
+                "event_id": f"{disease}-{country_code}-{current['epi_week']}-signal",
+                "event_type": "PUBLIC_HEALTH_SIGNAL",
+                "domain": "HEALTH",
+                "payload": {"risk_level": "INSUFFICIENT_DATA"},
+            })
+            continue
+
+        history = group[:-1]
+        current_week_num = int(current["epi_week"].split("-W")[1])
+        same_week = [g["cases_detected"] for g in history if int(g["epi_week"].split("-W")[1]) == current_week_num]
+        baseline = same_week if same_week else [g["cases_detected"] for g in history]
+        s_mean = mean(baseline)
+
+        current_cases = current["cases_detected"]
+        s_std = pstdev(baseline)
+        seasonal_z = (current_cases - s_mean) / s_std if s_std > 0 else 0.0
+        seasonal_score = max(0, min(seasonal_z, 3)) / 3 * 100
+
+        recent_avg = mean([g["cases_detected"] for g in history[-4:]]) if history else s_mean
+        growth_rate = (current_cases - recent_avg) / max(recent_avg, 1)
+        growth_score = max(0, min(growth_rate, 2)) / 2 * 100
+
+        if len(history) >= 2:
+            prev_cases = history[-1]["cases_detected"]
+            prev_recent = [g["cases_detected"] for g in history[-5:-1]]
+            prev_recent_avg = mean(prev_recent) if prev_recent else recent_avg
+            prev_growth = (prev_cases - prev_recent_avg) / max(prev_recent_avg, 1)
+            acceleration = growth_rate - prev_growth
+        else:
+            acceleration = 0.0
+        accel_score = max(0, min(acceleration, 1)) * 100
+
+        persistence_weeks = 0
+        for g in reversed(history):
+            if g["cases_detected"] > s_mean:
+                persistence_weeks += 1
+            else:
+                break
+        persistence_score = max(0, min(persistence_weeks, 8)) / 8 * 100
+
+        risk_score = (
+            0.40 * seasonal_score + 0.25 * growth_score
+            + 0.20 * accel_score + 0.15 * persistence_score
+        )
+
+        # Declining: compute previous week's score using same formula weights
+        prev_risk_score = None
+        if len(history) >= MIN_WEEKS_REQUIRED:
+            prev_week = history[-1]
+            prev_week_num = int(prev_week["epi_week"].split("-W")[1])
+            prev_history = history[:-1]
+            prev_same_week = [g["cases_detected"] for g in prev_history if int(g["epi_week"].split("-W")[1]) == prev_week_num]
+            prev_baseline = prev_same_week if prev_same_week else [g["cases_detected"] for g in prev_history]
+            prev_seasonal_mean = mean(prev_baseline)
+            prev_seasonal_std = pstdev(prev_baseline)
+            prev_seasonal_z = (prev_week["cases_detected"] - prev_seasonal_mean) / prev_seasonal_std if prev_seasonal_std > 0 else 0.0
+            prev_recent_avg = mean([g["cases_detected"] for g in prev_history[-4:]]) if prev_history else prev_seasonal_mean
+            prev_growth_rate = (prev_week["cases_detected"] - prev_recent_avg) / max(prev_recent_avg, 1)
+            prev_risk_score = 0.40 * (max(0, min(prev_seasonal_z, 3)) / 3 * 100) + 0.60 * (max(0, min(prev_growth_rate, 2)) / 2 * 100)
+
+        risk_level = classify_risk_score(risk_score, prev_risk_score)
+
+        signals.append({
+            "event_id": f"{disease}-{country_code}-{current['epi_week']}-signal",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_type": "PUBLIC_HEALTH_SIGNAL",
+            "domain": "HEALTH",
+            "payload": {
+                "disease": disease, "country_code": country_code,
+                "epi_week": current["epi_week"], "current_cases": current_cases,
+                "seasonal_mean": round(s_mean, 2), "seasonal_std_dev": round(s_std, 2),
+                "seasonal_z_score": round(seasonal_z, 4), "growth_rate": round(growth_rate, 4),
+                "acceleration": round(acceleration, 4), "persistence_weeks": persistence_weeks,
+                "risk_score": round(risk_score, 2), "risk_level": risk_level,
+            },
+        })
+    return signals
 
 
 def is_local_mock() -> bool:
@@ -72,100 +163,20 @@ def load_records(disease: str) -> list:
     ]
 
 
-def classify_z_score(z: float) -> str:
-    if z < 1.0:
-        return "LOW"
-    if z < 2.0:
-        return "MEDIUM"
-    if z < 3.0:
-        return "HIGH"
-    return "CRITICAL"
+def classify_risk_score(score: float, prev_score: float | None = None) -> str:
+    if prev_score is not None and prev_score >= 25 and score < prev_score - 20:
+        return "Declining"
+    if score < 25:
+        return "Normal"
+    if score < 50:
+        return "Elevated"
+    if score < 70:
+        return "Emerging Outbreak"
+    if score < 85:
+        return "Sustained Outbreak"
+    return "Severe Outbreak"
 
 
-def build_signal_record(
-    disease: str,
-    country_code: str,
-    epi_week: str,
-    current_cases: int,
-    hist_mean: float,
-    hist_std: float,
-    z_score: float | None,
-    risk_level: str,
-    timestamp: str,
-) -> dict:
-    return {
-        "event_id": f"{disease}-{country_code}-{epi_week}-signal",
-        "timestamp": timestamp,
-        "event_type": "PUBLIC_HEALTH_SIGNAL",
-        "domain": "HEALTH",
-        "payload": {
-            "disease": disease,
-            "country_code": country_code,
-            "epi_week": epi_week,
-            "current_cases": current_cases,
-            "historical_mean": round(hist_mean, 2),
-            "historical_std_dev": round(hist_std, 2),
-            "z_score": round(z_score, 4) if z_score is not None else None,
-            "risk_level": risk_level,
-        },
-    }
-
-
-def compute_z_scores(records: list) -> list:
-    """Compute z-score risk signals from normalised disease records.
-
-    Groups by (disease, country_code), uses the full history as the baseline,
-    and scores the most recent epi_week per group.
-
-    Uses population std dev (pstdev) because the stored records represent the
-    complete population of observed weeks, not a sample.
-    """
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    groups: dict[tuple, list] = defaultdict(list)
-    for rec in records:
-        p = rec["payload"]
-        groups[(p["disease"], p["country_code"])].append(p)
-
-    signals = []
-    for (disease, country_code), group in groups.items():
-        group.sort(key=lambda x: x["epi_week"])
-        case_counts = [g["cases_detected"] for g in group]
-        current = group[-1]
-
-        if len(group) < MIN_RECORDS_FOR_ZSCORE:
-            signals.append(
-                build_signal_record(
-                    disease, country_code, current["epi_week"],
-                    current["cases_detected"], 0.0, 0.0, None,
-                    "INSUFFICIENT_DATA", timestamp,
-                )
-            )
-            continue
-
-        hist_mean = mean(case_counts)
-        hist_std = pstdev(case_counts)
-
-        if hist_std == 0:
-            signals.append(
-                build_signal_record(
-                    disease, country_code, current["epi_week"],
-                    current["cases_detected"], hist_mean, 0.0, 0.0,
-                    "STABLE", timestamp,
-                )
-            )
-            continue
-
-        z = (current["cases_detected"] - hist_mean) / hist_std
-        signals.append(
-            build_signal_record(
-                disease, country_code, current["epi_week"],
-                current["cases_detected"], hist_mean, hist_std, z,
-                classify_z_score(z), timestamp,
-            )
-        )
-
-    return signals
 
 
 def parse_query_params(event: dict) -> dict:
@@ -175,7 +186,7 @@ def parse_query_params(event: dict) -> dict:
         "country_code": params.get("country_code", "").upper() or None,
         "start_epi_week": params.get("start_epi_week") or None,
         "end_epi_week": params.get("end_epi_week") or None,
-        "limit": min(int(params.get("limit", 100)), 1000),
+        "limit": min(int(params.get("limit") or 100) if str(params.get("limit", "")).isdigit() else 100, 1000),
     }
 
 
@@ -229,6 +240,13 @@ def lambda_handler(event, context):
     filters = parse_query_params(event)
     logger.info("Analytical query: %s", filters)
 
+    if filters["disease"] and filters["disease"] not in VALID_DISEASES:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": f"Unknown disease '{filters['disease']}'. Valid: {sorted(VALID_DISEASES)}"}),
+        }
+
     diseases = [filters["disease"]] if filters["disease"] else list(VALID_DISEASES)
     all_signals = []
 
@@ -238,7 +256,7 @@ def lambda_handler(event, context):
             if not records:
                 all_signals.append({"disease": disease, "error": "data unavailable"})
                 continue
-            signals = compute_z_scores(records)
+            signals = compute_signals(records)
         except Exception as e:
             logger.error("%s: analytical failed — %s", disease, e, exc_info=True)
             all_signals.append({"disease": disease, "error": str(e)})
