@@ -273,13 +273,21 @@ def _index_to_dynamo(records: list) -> None:
 
     dynamo = boto3.resource("dynamodb")
     table = dynamo.Table(DYNAMO_TABLE)
+    # Deduplicate by (pk, epi_week) — DynamoDB BatchWriteItem rejects duplicate
+    # keys within a single batch flush.
+    unique: dict = {}
+    for rec in records:
+        p = rec["payload"]
+        key = (f"{p['disease']}#{p['country_code']}", p["epi_week"])
+        unique[key] = rec
+
     with table.batch_writer() as batch:
-        for rec in records:
+        for (pk, epi_week), rec in unique.items():
             p = rec["payload"]
             batch.put_item(
                 Item={
-                    "pk": f"{p['disease']}#{p['country_code']}",  # main PK
-                    "epi_week": p["epi_week"],                    # main SK
+                    "pk": pk,
+                    "epi_week": epi_week,
                     "disease": p["disease"],                      # GSI 1 PK
                     "country_code": p["country_code"],
                     "cases_detected": p["cases_detected"],

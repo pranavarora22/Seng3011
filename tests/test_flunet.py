@@ -369,5 +369,40 @@ class TestIso2ToIso3(unittest.TestCase):
         self.assertEqual(lambda_function.ISO2_TO_ISO3.get("GB"), "GBR")
 
 
+class TestIndexToDynamo(unittest.TestCase):
+    def _make_rec(self, country, epi_week, cases=100):
+        return {
+            "event_id": f"influenza-{country}-{epi_week}",
+            "timestamp": "2026-01-01T00:00:00+00:00",
+            "payload": {
+                "disease": "influenza",
+                "country_code": country,
+                "epi_week": epi_week,
+                "cases_detected": cases,
+            },
+        }
+
+    def test_duplicate_records_do_not_raise(self):
+        """Duplicate (disease, country_code, epi_week) records must not cause
+        a DynamoDB ValidationException for duplicate keys in a batch."""
+        from lambda_function import _index_to_dynamo
+
+        records = [
+            self._make_rec("AUS", "2024-W01", 100),
+            self._make_rec("AUS", "2024-W01", 110),  # duplicate key
+        ]
+
+        mock_table = MagicMock()
+        mock_batch = MagicMock()
+        mock_table.batch_writer.return_value.__enter__ = MagicMock(return_value=mock_batch)
+        mock_table.batch_writer.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch("lambda_function.DYNAMO_TABLE", "test-table"), \
+             patch("boto3.resource") as mock_boto:
+            mock_boto.return_value.Table.return_value = mock_table
+            _index_to_dynamo(records)
+
+        # Only one put_item call for the two duplicate records
+        self.assertEqual(mock_batch.put_item.call_count, 1)
 if __name__ == "__main__":
     unittest.main()
