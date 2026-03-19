@@ -208,7 +208,7 @@ def parse_query_params(event: dict) -> dict:
         "country_code": params.get("country_code", "").upper() or None,
         "start_epi_week": params.get("start_epi_week") or None,
         "end_epi_week": params.get("end_epi_week") or None,
-        "limit": min(int(params.get("limit") or 100) if str(params.get("limit", "")).isdigit() else 100, 1000),
+        "limit": max(1, min(int(params.get("limit") or 100) if str(params.get("limit", "")).isdigit() else 100, 1000)),
     }
 
 
@@ -284,11 +284,6 @@ def lambda_handler(event, context):
             all_signals.append({"disease": disease, "error": str(e)})
             continue
 
-        if filters["country_code"]:
-            signals = [
-                s for s in signals
-                if s.get("payload", {}).get("country_code") == filters["country_code"]
-            ]
         if filters["start_epi_week"]:
             signals = [
                 s for s in signals

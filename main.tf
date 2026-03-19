@@ -59,16 +59,46 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_s3_dynamo" {
-  count      = var.use_lab_role ? 0 : 1
-  role       = aws_iam_role.lambda_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
-}
+resource "aws_iam_role_policy" "lambda_scoped" {
+  count = var.use_lab_role ? 0 : 1
+  name  = "seng3011-lambda-scoped-policy"
+  role  = aws_iam_role.lambda_role[0].name
 
-resource "aws_iam_role_policy_attachment" "lambda_s3" {
-  count      = var.use_lab_role ? 0 : 1
-  role       = aws_iam_role.lambda_role[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
+        ]
+        Resource = [
+          aws_dynamodb_table.disease_records.arn,
+          "${aws_dynamodb_table.disease_records.arn}/*",
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+        ]
+        Resource = [
+          aws_s3_bucket.data_bucket.arn,
+          "${aws_s3_bucket.data_bucket.arn}/*",
+        ]
+      },
+    ]
+  })
 }
 
 locals {
@@ -165,6 +195,12 @@ resource "aws_lambda_function" "data_retriever" {
 resource "aws_apigatewayv2_api" "retriever_api" {
   name          = "seng3011-retriever-api"
   protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET"]
+    allow_headers = ["content-type"]
+  }
 }
 
 resource "aws_apigatewayv2_integration" "retriever_integration" {
@@ -221,6 +257,12 @@ resource "aws_lambda_function" "analytical_model" {
 resource "aws_apigatewayv2_api" "analytical_api" {
   name          = "seng3011-analytical-api"
   protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["GET"]
+    allow_headers = ["content-type"]
+  }
 }
 
 resource "aws_apigatewayv2_integration" "analytical_integration" {
@@ -291,14 +333,6 @@ resource "aws_lambda_permission" "allow_eventbridge" {
 # }
 # import {
 #   to = aws_lambda_function.analytical_model
-#   id = "seng3011-analytical-model"
-# }
-# import {
-#   to = aws_lambda_function_url.retriever_url
-#   id = "seng3011-data-retriever"
-# }
-# import {
-#   to = aws_lambda_function_url.analytical_model_url
 #   id = "seng3011-analytical-model"
 # }
 # import {
