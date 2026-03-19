@@ -26,7 +26,7 @@ def compute_signals(records: list) -> list:
 
     signals = []
     for (disease, country_code), group in groups.items():
-        group.sort(key=lambda x: x["epi_week"])
+        group.sort(key=lambda x: tuple(int(p) for p in x["epi_week"].replace("-W", "-").split("-")))
         current = group[-1]
 
         if len(group) < MIN_WEEKS_REQUIRED:

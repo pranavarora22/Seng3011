@@ -267,6 +267,23 @@ class TestComputeSignals(unittest.TestCase):
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0]["payload"]["risk_level"], "INSUFFICIENT_DATA")
 
+    def test_sort_uses_chronological_order_not_lexicographic(self):
+        """Weeks must sort chronologically — W9 before W10, not after.
+
+        Lexicographic: '2020-W9' > '2020-W10' → W9 treated as most-recent.
+        Chronological: (2020,9) < (2020,10) → W10 correctly treated as most-recent.
+        """
+        from analytical_lambda import compute_signals
+
+        # All history in 2019 so they sort before 2020 regardless of method.
+        records = make_records(30, base=100, start_year=2019)
+        # Append 2020-W9 (spike) then 2020-W10 (normal) — W10 must be current.
+        records.append(make_record("influenza", "AUS", "2020-W9", 9999))
+        records.append(make_record("influenza", "AUS", "2020-W10", 100))
+
+        signal = compute_signals(records)[0]
+        self.assertEqual(signal["payload"]["epi_week"], "2020-W10")
+
     def test_insufficient_data_signal_has_required_structure(self):
         """INSUFFICIENT_DATA signals must include event_id, event_type, domain."""
         from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
