@@ -239,6 +239,13 @@ def lambda_handler(event, context):
     filters = parse_query_params(event)
     logger.info("Analytical query: %s", filters)
 
+    if filters["disease"] and filters["disease"] not in VALID_DISEASES:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps({"error": f"Unknown disease '{filters['disease']}'. Valid: {sorted(VALID_DISEASES)}"}),
+        }
+
     diseases = [filters["disease"]] if filters["disease"] else list(VALID_DISEASES)
     all_signals = []
 

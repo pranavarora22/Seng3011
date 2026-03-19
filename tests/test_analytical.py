@@ -129,6 +129,13 @@ class TestParseQueryParams(unittest.TestCase):
 
 
 class TestAnalyticalLambdaHandler(unittest.TestCase):
+    def test_unknown_disease_returns_400(self):
+        """?disease=unknown must return 400, not query DynamoDB with garbage."""
+        from analytical_lambda import lambda_handler
+
+        result = lambda_handler({"queryStringParameters": {"disease": "unknown"}}, None)
+        self.assertEqual(result["statusCode"], 400)
+
     def test_returns_200_with_signals(self):
         """lambda_handler should return 200 and a signals list."""
         import json
