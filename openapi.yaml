@@ -16,15 +16,15 @@ info:
 
 servers:
   - url: "{retrieval_url}"
-    description: Retrieval Lambda Function URL
+    description: Retrieval API (API Gateway HTTP API)
     variables:
       retrieval_url:
-        default: https://<retrieval-function-url>
+        default: https://<retrieval-api-gateway-url>
   - url: "{analytical_url}"
-    description: Analytical Lambda Function URL
+    description: Analytical API (API Gateway HTTP API)
     variables:
       analytical_url:
-        default: https://<analytical-function-url>
+        default: https://<analytical-api-gateway-url>
 
 tags:
   - name: Retrieval
@@ -65,13 +65,14 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /signals:
+  /:
     get:
       tags: [Analytical]
       summary: Query multi-factor risk signals
       description: |
         Returns one signal per (disease, country) group representing the most
         recent epi-week scored against the full historical baseline.
+        Served at the root (`/`) of the Analytical API Gateway endpoint.
       operationId: getSignals
       parameters:
         - $ref: "#/components/parameters/disease"
