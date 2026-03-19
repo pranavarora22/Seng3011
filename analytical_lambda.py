@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, pstdev
 
@@ -18,7 +19,6 @@ MIN_WEEKS_REQUIRED = 26  # ~6 months of weekly data for meaningful seasonal base
 
 
 def compute_signals(records: list) -> list:
-    from collections import defaultdict
     groups: dict = defaultdict(list)
     for rec in records:
         p = rec["payload"]
