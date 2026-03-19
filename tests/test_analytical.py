@@ -267,6 +267,18 @@ class TestComputeSignals(unittest.TestCase):
         self.assertEqual(len(signals), 1)
         self.assertEqual(signals[0]["payload"]["risk_level"], "INSUFFICIENT_DATA")
 
+    def test_insufficient_data_signal_has_required_structure(self):
+        """INSUFFICIENT_DATA signals must include event_id, event_type, domain."""
+        from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED
+
+        records = make_records(MIN_WEEKS_REQUIRED - 1)
+        signal = compute_signals(records)[0]
+
+        self.assertIn("event_id", signal)
+        self.assertIn("event_type", signal)
+        self.assertIn("domain", signal)
+        self.assertEqual(signal["event_type"], "PUBLIC_HEALTH_SIGNAL")
+
     def test_output_schema(self):
         """Signal payload must contain all required fields."""
         from analytical_lambda import compute_signals, MIN_WEEKS_REQUIRED

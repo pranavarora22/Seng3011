@@ -30,7 +30,12 @@ def compute_signals(records: list) -> list:
         current = group[-1]
 
         if len(group) < MIN_WEEKS_REQUIRED:
-            signals.append({"payload": {"risk_level": "INSUFFICIENT_DATA"}})
+            signals.append({
+                "event_id": f"{disease}-{country_code}-{current['epi_week']}-signal",
+                "event_type": "PUBLIC_HEALTH_SIGNAL",
+                "domain": "HEALTH",
+                "payload": {"risk_level": "INSUFFICIENT_DATA"},
+            })
             continue
 
         history = group[:-1]
