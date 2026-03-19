@@ -206,7 +206,9 @@ components:
           type: object
           required:
             [disease, country_code, epi_week, current_cases,
-             historical_mean, historical_std_dev, z_score, risk_level]
+             seasonal_mean, seasonal_std_dev, seasonal_z_score,
+             growth_rate, acceleration, persistence_weeks,
+             risk_score, risk_level]
           properties:
             disease:
               type: string
@@ -220,23 +222,50 @@ components:
             current_cases:
               type: integer
               example: 850
-            historical_mean:
+            seasonal_mean:
               type: number
               format: float
+              description: Mean cases for the same week-of-year across prior years
               example: 312.4
-            historical_std_dev:
+            seasonal_std_dev:
               type: number
               format: float
               example: 187.2
-            z_score:
+            seasonal_z_score:
               type: number
               format: float
-              nullable: true
+              description: Z-score vs same-week seasonal baseline
               example: 2.87
+            growth_rate:
+              type: number
+              format: float
+              description: Fractional change vs 4-week rolling average
+              example: 0.45
+            acceleration:
+              type: number
+              format: float
+              description: Change in growth rate vs prior week
+              example: 0.12
+            persistence_weeks:
+              type: integer
+              description: Consecutive weeks above seasonal mean
+              example: 4
+            risk_score:
+              type: number
+              format: float
+              description: Weighted composite score 0–100
+              example: 62.3
             risk_level:
               type: string
-              enum: [LOW, MEDIUM, HIGH, CRITICAL, STABLE, INSUFFICIENT_DATA]
-              example: HIGH
+              enum:
+                - Normal
+                - Elevated
+                - Emerging Outbreak
+                - Sustained Outbreak
+                - Severe Outbreak
+                - Declining
+                - INSUFFICIENT_DATA
+              example: Emerging Outbreak
 
   responses:
     InternalError:
