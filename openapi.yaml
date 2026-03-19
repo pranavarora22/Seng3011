@@ -68,7 +68,7 @@ paths:
   /signals:
     get:
       tags: [Analytical]
-      summary: Query z-score risk signals
+      summary: Query multi-factor risk signals
       description: |
         Returns one signal per (disease, country) group representing the most
         recent epi-week scored against the full historical baseline.

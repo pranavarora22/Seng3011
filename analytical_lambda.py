@@ -76,19 +76,20 @@ def compute_signals(records: list) -> list:
             + 0.20 * accel_score + 0.15 * persistence_score
         )
 
-        # Declining: compute previous week's score
+        # Declining: compute previous week's score using same formula weights
         prev_risk_score = None
         if len(history) >= MIN_WEEKS_REQUIRED:
-            prev = history[-1]
-            pw_num = int(prev["epi_week"].split("-W")[1])
-            ph = history[:-1]
-            pw = [g["cases_detected"] for g in ph if int(g["epi_week"].split("-W")[1]) == pw_num]
-            pb = pw if pw else [g["cases_detected"] for g in ph]
-            pm = mean(pb); ps = pstdev(pb)
-            pz = (prev["cases_detected"] - pm) / ps if ps > 0 else 0.0
-            pr_avg = mean([g["cases_detected"] for g in ph[-4:]]) if ph else pm
-            pg = (prev["cases_detected"] - pr_avg) / max(pr_avg, 1)
-            prev_risk_score = 0.40 * (max(0, min(pz, 3)) / 3 * 100) + 0.60 * (max(0, min(pg, 2)) / 2 * 100)
+            prev_week = history[-1]
+            prev_week_num = int(prev_week["epi_week"].split("-W")[1])
+            prev_history = history[:-1]
+            prev_same_week = [g["cases_detected"] for g in prev_history if int(g["epi_week"].split("-W")[1]) == prev_week_num]
+            prev_baseline = prev_same_week if prev_same_week else [g["cases_detected"] for g in prev_history]
+            prev_seasonal_mean = mean(prev_baseline)
+            prev_seasonal_std = pstdev(prev_baseline)
+            prev_seasonal_z = (prev_week["cases_detected"] - prev_seasonal_mean) / prev_seasonal_std if prev_seasonal_std > 0 else 0.0
+            prev_recent_avg = mean([g["cases_detected"] for g in prev_history[-4:]]) if prev_history else prev_seasonal_mean
+            prev_growth_rate = (prev_week["cases_detected"] - prev_recent_avg) / max(prev_recent_avg, 1)
+            prev_risk_score = 0.40 * (max(0, min(prev_seasonal_z, 3)) / 3 * 100) + 0.60 * (max(0, min(prev_growth_rate, 2)) / 2 * 100)
 
         risk_level = classify_risk_score(risk_score, prev_risk_score)
 
