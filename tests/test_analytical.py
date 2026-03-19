@@ -119,6 +119,15 @@ class TestComputeZScores(unittest.TestCase):
         self.assertTrue(required.issubset(signal["payload"].keys()))
 
 
+class TestParseQueryParams(unittest.TestCase):
+    def test_non_integer_limit_does_not_raise(self):
+        """?limit=abc must not raise ValueError — should fall back to default 100."""
+        from analytical_lambda import parse_query_params
+
+        params = parse_query_params({"queryStringParameters": {"limit": "abc"}})
+        self.assertEqual(params["limit"], 100)
+
+
 class TestAnalyticalLambdaHandler(unittest.TestCase):
     def test_returns_200_with_signals(self):
         """lambda_handler should return 200 and a signals list."""
@@ -256,6 +265,7 @@ class TestComputeSignals(unittest.TestCase):
 
         signal = compute_signals(records)[0]
         self.assertEqual(signal["payload"]["risk_level"], "Declining")
+
 
     def test_insufficient_data(self):
         """Fewer than MIN_WEEKS_REQUIRED records → INSUFFICIENT_DATA."""

@@ -185,7 +185,7 @@ def parse_query_params(event: dict) -> dict:
         "country_code": params.get("country_code", "").upper() or None,
         "start_epi_week": params.get("start_epi_week") or None,
         "end_epi_week": params.get("end_epi_week") or None,
-        "limit": min(int(params.get("limit", 100)), 1000),
+        "limit": min(int(params.get("limit") or 100) if str(params.get("limit", "")).isdigit() else 100, 1000),
     }
 
 
