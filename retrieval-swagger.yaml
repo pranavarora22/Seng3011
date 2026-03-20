@@ -1,0 +1,217 @@
+openapi: 3.0.3
+info:
+  title: Disease Surveillance Retrieval API
+  version: 1.0.0
+  description: |
+    Retrieval API for the Disease Surveillance Microservice.
+
+    This API returns normalised weekly public health surveillance records sourced
+    from WHO FluNet / FluMart and WHO NCOV datasets.
+
+    Supported diseases:
+    - influenza
+    - rsv
+    - sars-cov-2
+
+    Epi-week format: `YYYY-Www` (for example `2025-W03`).
+servers:
+  - url: https://<retrieval-api-id>.execute-api.<region>.amazonaws.com
+    description: Deployed Retrieval API Gateway URL
+
+tags:
+  - name: Retrieval
+    description: Query weekly disease surveillance records
+
+paths:
+  /:
+    get:
+      tags: [Retrieval]
+      summary: Query disease surveillance records
+      description: |
+        Returns weekly disease surveillance records in the `PUBLIC_HEALTH_RECORD`
+        schema.
+
+        Query behaviour:
+        - `disease` + `country_code` uses the most selective query path.
+        - `disease` alone queries the disease secondary index.
+        - Omitting `disease` may trigger a broader scan and should be avoided for
+          production use.
+      operationId: getDiseaseRecords
+      parameters:
+        - $ref: '#/components/parameters/disease'
+        - $ref: '#/components/parameters/country_code'
+        - $ref: '#/components/parameters/start_epi_week'
+        - $ref: '#/components/parameters/end_epi_week'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Matching weekly disease records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetrievalResponse'
+              examples:
+                example:
+                  value:
+                    count: 1
+                    items:
+                      - event_id: influenza-AUS-2025-W03
+                        timestamp: '2026-03-18T00:00:00+00:00'
+                        event_type: PUBLIC_HEALTH_RECORD
+                        domain: HEALTH
+                        payload:
+                          disease: influenza
+                          country_code: AUS
+                          epi_week: 2025-W03
+                          cases_detected: 142
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /docs:
+    get:
+      tags: [Retrieval]
+      summary: Swagger UI documentation
+      description: Returns the interactive Swagger UI HTML page for the Retrieval API.
+      operationId: getRetrievalDocs
+      responses:
+        '200':
+          description: Swagger UI HTML
+          content:
+            text/html:
+              schema:
+                type: string
+                example: '<!doctype html>...SwaggerUIBundle...'
+
+components:
+  parameters:
+    disease:
+      name: disease
+      in: query
+      required: false
+      description: Disease name (case-insensitive)
+      schema:
+        type: string
+        enum: [influenza, rsv, sars-cov-2]
+      example: influenza
+
+    country_code:
+      name: country_code
+      in: query
+      required: false
+      description: |
+        ISO 3166-1 alpha-3 country code or a common English country name.
+        The service normalises many common names to ISO-3 output values.
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 50
+      example: AUS
+
+    start_epi_week:
+      name: start_epi_week
+      in: query
+      required: false
+      description: Inclusive start of epidemiological week range.
+      schema:
+        type: string
+        pattern: '^\d{4}-W\d{2}$'
+      example: '2024-W01'
+
+    end_epi_week:
+      name: end_epi_week
+      in: query
+      required: false
+      description: Inclusive end of epidemiological week range.
+      schema:
+        type: string
+        pattern: '^\d{4}-W\d{2}$'
+      example: '2024-W52'
+
+    limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of returned records. Values above 1000 are capped.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+      example: 100
+
+  schemas:
+    RetrievalResponse:
+      type: object
+      required: [count, items]
+      properties:
+        count:
+          type: integer
+          example: 1
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicHealthRecord'
+
+    PublicHealthRecord:
+      type: object
+      required: [event_id, timestamp, event_type, domain, payload]
+      properties:
+        event_id:
+          type: string
+          example: influenza-AUS-2025-W03
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-03-18T00:00:00+00:00'
+        event_type:
+          type: string
+          enum: [PUBLIC_HEALTH_RECORD]
+        domain:
+          type: string
+          enum: [HEALTH]
+        payload:
+          $ref: '#/components/schemas/PublicHealthRecordPayload'
+
+    PublicHealthRecordPayload:
+      type: object
+      required: [disease, country_code, epi_week, cases_detected]
+      properties:
+        disease:
+          type: string
+          enum: [influenza, rsv, sars-cov-2]
+        country_code:
+          type: string
+          description: ISO 3166-1 alpha-3 country code
+          example: AUS
+        epi_week:
+          type: string
+          pattern: '^\d{4}-W\d{2}$'
+          example: '2025-W03'
+        cases_detected:
+          type: integer
+          minimum: 0
+          example: 142
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: Invalid disease parameter
+
+  responses:
+    BadRequest:
+      description: Invalid query parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
