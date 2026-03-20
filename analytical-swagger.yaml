@@ -1,0 +1,280 @@
+openapi: 3.0.3
+info:
+  title: Disease Surveillance Analytical API
+  version: 1.0.0
+  description: |
+    Analytical API for the Disease Surveillance Microservice.
+
+    This API computes one outbreak risk signal per `(disease, country_code)`
+    group using historical weekly case data.
+
+    Signals are produced from a multi-factor scoring model that includes:
+    - seasonal z-score
+    - growth rate
+    - acceleration
+    - persistence weeks
+    - composite risk score
+
+    Epi-week format: `YYYY-Www` (for example `2025-W03`).
+servers:
+  - url: https://<analytical-api-id>.execute-api.<region>.amazonaws.com
+    description: Deployed Analytical API Gateway URL
+
+tags:
+  - name: Analytical
+    description: Query outbreak risk signals
+
+paths:
+  /:
+    get:
+      tags: [Analytical]
+      summary: Query outbreak risk signals
+      description: |
+        Returns one `PUBLIC_HEALTH_SIGNAL` per `(disease, country_code)` group
+        using the most recent epidemiological week available in the filtered
+        dataset.
+      operationId: getRiskSignals
+      parameters:
+        - $ref: '#/components/parameters/disease'
+        - $ref: '#/components/parameters/country_code'
+        - $ref: '#/components/parameters/start_epi_week'
+        - $ref: '#/components/parameters/end_epi_week'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: Computed outbreak risk signals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticalResponse'
+              examples:
+                example:
+                  value:
+                    count: 1
+                    signals:
+                      - event_id: signal-influenza-AUS-2025-W03
+                        timestamp: '2026-03-18T00:00:00+00:00'
+                        event_type: PUBLIC_HEALTH_SIGNAL
+                        domain: HEALTH
+                        payload:
+                          disease: influenza
+                          country_code: AUS
+                          epi_week: 2025-W03
+                          current_cases: 142
+                          seasonal_mean: 101.3
+                          seasonal_std_dev: 15.8
+                          seasonal_z_score: 2.58
+                          growth_rate: 0.21
+                          acceleration: 0.08
+                          persistence_weeks: 2
+                          risk_score: 61.5
+                          risk_level: Emerging Outbreak
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /docs:
+    get:
+      tags: [Analytical]
+      summary: Swagger UI documentation
+      description: Returns the interactive Swagger UI HTML page for the Analytical API.
+      operationId: getAnalyticalDocs
+      responses:
+        '200':
+          description: Swagger UI HTML
+          content:
+            text/html:
+              schema:
+                type: string
+                example: '<!doctype html>...SwaggerUIBundle...'
+
+components:
+  parameters:
+    disease:
+      name: disease
+      in: query
+      required: false
+      description: Disease name (case-insensitive)
+      schema:
+        type: string
+        enum: [influenza, rsv, sars-cov-2]
+      example: influenza
+
+    country_code:
+      name: country_code
+      in: query
+      required: false
+      description: ISO 3166-1 alpha-3 country code or common country name
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 50
+      example: AUS
+
+    start_epi_week:
+      name: start_epi_week
+      in: query
+      required: false
+      description: Inclusive start of epidemiological week range.
+      schema:
+        type: string
+        pattern: '^\d{4}-W\d{2}$'
+      example: '2024-W01'
+
+    end_epi_week:
+      name: end_epi_week
+      in: query
+      required: false
+      description: Inclusive end of epidemiological week range.
+      schema:
+        type: string
+        pattern: '^\d{4}-W\d{2}$'
+      example: '2024-W52'
+
+    limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of returned signal groups. Values above 1000 are capped.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+      example: 100
+
+  schemas:
+    AnalyticalResponse:
+      type: object
+      required: [count, signals]
+      properties:
+        count:
+          type: integer
+          example: 1
+        signals:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/PublicHealthSignal'
+              - $ref: '#/components/schemas/SignalError'
+
+    PublicHealthSignal:
+      type: object
+      required: [event_id, timestamp, event_type, domain, payload]
+      properties:
+        event_id:
+          type: string
+          example: signal-influenza-AUS-2025-W03
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-03-18T00:00:00+00:00'
+        event_type:
+          type: string
+          enum: [PUBLIC_HEALTH_SIGNAL]
+        domain:
+          type: string
+          enum: [HEALTH]
+        payload:
+          $ref: '#/components/schemas/PublicHealthSignalPayload'
+
+    PublicHealthSignalPayload:
+      type: object
+      required:
+        - disease
+        - country_code
+        - epi_week
+        - current_cases
+        - seasonal_mean
+        - seasonal_std_dev
+        - seasonal_z_score
+        - growth_rate
+        - acceleration
+        - persistence_weeks
+        - risk_score
+        - risk_level
+      properties:
+        disease:
+          type: string
+          enum: [influenza, rsv, sars-cov-2]
+        country_code:
+          type: string
+          example: AUS
+        epi_week:
+          type: string
+          pattern: '^\d{4}-W\d{2}$'
+          example: '2025-W03'
+        current_cases:
+          type: integer
+          minimum: 0
+          example: 142
+        seasonal_mean:
+          type: number
+          format: float
+          example: 101.3
+        seasonal_std_dev:
+          type: number
+          format: float
+          example: 15.8
+        seasonal_z_score:
+          type: number
+          format: float
+          example: 2.58
+        growth_rate:
+          type: number
+          format: float
+          example: 0.21
+        acceleration:
+          type: number
+          format: float
+          example: 0.08
+        persistence_weeks:
+          type: integer
+          minimum: 0
+          example: 2
+        risk_score:
+          type: number
+          format: float
+          example: 61.5
+        risk_level:
+          type: string
+          enum:
+            - Normal
+            - Elevated
+            - Emerging Outbreak
+            - Sustained Outbreak
+            - Severe Outbreak
+            - Declining
+            - INSUFFICIENT_DATA
+          example: Emerging Outbreak
+
+    SignalError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: No records available for requested disease
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: Invalid disease parameter
+
+  responses:
+    BadRequest:
+      description: Invalid query parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
