@@ -53,5 +53,47 @@ class TestDocsRoute(unittest.TestCase):
         self.assertIn("items", body)
 
 
+class TestResolveCountry(unittest.TestCase):
+    def test_alpha3_passthrough(self):
+        """A valid 3-letter code should be returned as-is."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("AUS"), "AUS")
+
+    def test_alpha3_case_insensitive(self):
+        """Alpha-3 codes should be uppercased."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("aus"), "AUS")
+
+    def test_alpha2_to_alpha3(self):
+        """A 2-letter code like 'US' should resolve to 'USA'."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("US"), "USA")
+
+    def test_full_name(self):
+        """A full country name should resolve to alpha-3."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("australia"), "AUS")
+
+    def test_full_name_united_states(self):
+        """'United States' should resolve to 'USA'."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("United States"), "USA")
+
+    def test_full_name_united_kingdom(self):
+        """'United Kingdom' should resolve to 'GBR'."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("United Kingdom"), "GBR")
+
+    def test_unknown_returns_uppercased(self):
+        """An unrecognisable input should be returned uppercased."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("xyzzy"), "XYZZY")
+
+    def test_whitespace_stripped(self):
+        """Leading/trailing whitespace should be stripped."""
+        from retrieval_lambda import resolve_country
+        self.assertEqual(resolve_country("  AUS  "), "AUS")
+
+
 if __name__ == "__main__":
     unittest.main()

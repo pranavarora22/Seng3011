@@ -143,10 +143,12 @@ class TestSaveOutput(unittest.TestCase):
         """save_output outside LOCAL_MOCK mode should put object to S3."""
         from lambda_function import save_output
 
+        mock_boto3 = MagicMock()
         mock_s3 = MagicMock()
+        mock_boto3.client.return_value = mock_s3
         with patch("lambda_function.is_local_mock", return_value=False), \
              patch("lambda_function.S3_BUCKET", "test-bucket"), \
-             patch("boto3.client", return_value=mock_s3):
+             patch.dict("sys.modules", {"boto3": mock_boto3}):
             save_output("influenza", [])
 
         mock_s3.put_object.assert_called_once()
@@ -397,9 +399,10 @@ class TestIndexToDynamo(unittest.TestCase):
         mock_table.batch_writer.return_value.__enter__ = MagicMock(return_value=mock_batch)
         mock_table.batch_writer.return_value.__exit__ = MagicMock(return_value=False)
 
+        mock_boto3 = MagicMock()
+        mock_boto3.resource.return_value.Table.return_value = mock_table
         with patch("lambda_function.DYNAMO_TABLE", "test-table"), \
-             patch("boto3.resource") as mock_boto:
-            mock_boto.return_value.Table.return_value = mock_table
+             patch.dict("sys.modules", {"boto3": mock_boto3}):
             _index_to_dynamo(records)
 
         # Only one put_item call for the two duplicate records
