@@ -6,7 +6,6 @@ without making any HTTP calls or touching AWS.
 
 import os
 import json
-import sys
 
 
 def main():

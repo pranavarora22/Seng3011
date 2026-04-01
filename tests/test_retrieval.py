@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["LOCAL_MOCK"] = "True"
 
-import unittest
+import unittest  # noqa: E402
 
 
 class TestDocsRoute(unittest.TestCase):

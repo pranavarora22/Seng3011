@@ -7,7 +7,7 @@ from unittest.mock import patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["LOCAL_MOCK"] = "True"
 
-import unittest
+import unittest  # noqa: E402
 
 
 def make_record(disease, country, epi_week, cases):
@@ -272,7 +272,6 @@ class TestComputeSignals(unittest.TestCase):
 
         signal = compute_signals(records)[0]
         self.assertEqual(signal["payload"]["risk_level"], "Declining")
-
 
     def test_insufficient_data(self):
         """Fewer than MIN_WEEKS_REQUIRED records → INSUFFICIENT_DATA."""
