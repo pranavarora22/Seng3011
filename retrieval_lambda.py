@@ -2,6 +2,8 @@ import os
 import json
 import logging
 
+import pycountry
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -12,40 +14,31 @@ LOCAL_CLEAN_PATH = os.path.join("tests", "mock_s3", "normalized-data")
 
 VALID_DISEASES = {"influenza", "rsv", "sars-cov-2"}
 
-# Common country name aliases → ISO 3166-1 alpha-3
-COUNTRY_MAP = {
-    "australia": "AUS",
-    "india": "IND",
-    "usa": "USA",
-    "united states": "USA",
-    "united states of america": "USA",
-    "uk": "GBR",
-    "united kingdom": "GBR",
-    "china": "CHN",
-    "france": "FRA",
-    "germany": "DEU",
-    "brazil": "BRA",
-    "canada": "CAN",
-    "japan": "JPN",
-    "south africa": "ZAF",
-    "nigeria": "NGA",
-    "indonesia": "IDN",
-    "pakistan": "PAK",
-    "mexico": "MEX",
-    "new zealand": "NZL",
-}
-
 
 def is_local_mock() -> bool:
     return os.environ.get("LOCAL_MOCK", "").strip().lower() == "true"
 
 
 def resolve_country(raw: str) -> str:
-    """Normalise a country input to a 3-letter ISO code."""
-    upper = raw.strip().upper()
+    """Normalise a country input to a 3-letter ISO code using pycountry."""
+    stripped = raw.strip()
+    upper = stripped.upper()
+    # Already a valid alpha-3 code
     if len(upper) == 3 and upper.isalpha():
         return upper
-    return COUNTRY_MAP.get(raw.strip().lower(), upper)
+    # Try alpha-2 lookup (e.g. "US" → "USA")
+    if len(upper) == 2 and upper.isalpha():
+        match = pycountry.countries.get(alpha_2=upper)
+        if match:
+            return match.alpha_3
+    # Try fuzzy search by name (e.g. "australia" → "AUS")
+    try:
+        results = pycountry.countries.search_fuzzy(stripped)
+        if results:
+            return results[0].alpha_3
+    except LookupError:
+        pass
+    return upper
 
 
 def parse_query_params(event: dict) -> dict:
