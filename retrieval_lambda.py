@@ -81,9 +81,9 @@ def query_dynamo(filters: dict) -> list:
     if start_week and end_week:
         week_condition = Key("epi_week").between(start_week, end_week)
     elif start_week:
-        week_condition = Key("epi_week").gte(start_week)
+        week_condition = Key("epi_week").gte(start_week)  # type: ignore[assignment]
     elif end_week:
-        week_condition = Key("epi_week").lte(end_week)
+        week_condition = Key("epi_week").lte(end_week)  # type: ignore[assignment]
 
     if disease and country_code:
         # Main table: PK = disease#country_code, SK = epi_week
@@ -107,9 +107,9 @@ def query_dynamo(filters: dict) -> list:
         if start_week and end_week:
             filter_expr = Attr("epi_week").between(start_week, end_week)
         elif start_week:
-            filter_expr = Attr("epi_week").gte(start_week)
+            filter_expr = Attr("epi_week").gte(start_week)  # type: ignore[assignment]
         elif end_week:
-            filter_expr = Attr("epi_week").lte(end_week)
+            filter_expr = Attr("epi_week").lte(end_week)  # type: ignore[assignment]
         kwargs = {"Limit": limit}
         if filter_expr:
             kwargs["FilterExpression"] = filter_expr

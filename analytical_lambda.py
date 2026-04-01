@@ -170,7 +170,7 @@ def load_records(disease: str, country_code: Optional[str] = None) -> list:
         # Full load: paginate through all records for this disease via GSI 1
         while True:
             kwargs = {
-                "IndexName": "disease-week-index",
+                "IndexName": "disease-week-index",  # type: ignore[dict-item]
                 "KeyConditionExpression": Key("disease").eq(disease),
             }
             if last_key:

@@ -128,7 +128,7 @@ def fetch_covid_records(endpoint: str) -> list:
 
 # Backward-compatible wrapper so existing tests that patch fetch_flunet_records pass.
 def fetch_flunet_records(year: int) -> list:
-    return fetch_odata_records(DISEASE_CONFIG["influenza"]["endpoint"], year)
+    return fetch_odata_records(DISEASE_CONFIG["influenza"]["endpoint"], year)  # type: ignore[index]
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +235,7 @@ def process_disease(disease_name: str, config: dict) -> list:
 
 # Backward-compatible wrapper so existing tests keep passing without changes.
 def process_flunet_disease() -> list:
-    return process_disease("influenza", DISEASE_CONFIG["influenza"])
+    return process_disease("influenza", DISEASE_CONFIG["influenza"])  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
