@@ -49,7 +49,20 @@ jobs:
 
       - name: Convert test report to PDF
         if: always()
-        run: weasyprint test-report.html test-report.pdf
+        run: |
+          python3 - <<'EOF'
+          import re
+          html = open("test-report.html").read()
+          html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
+          override = """<style>
+            input[type="checkbox"], label { display: none !important; }
+            tr, tbody tr { display: table-row !important; }
+            .col-links { display: none !important; }
+          </style>"""
+          html = html.replace("</head>", override + "</head>")
+          open("test-report-print.html", "w").write(html)
+          EOF
+          weasyprint test-report-print.html test-report.pdf
 
       - name: Upload PDF test report as artifact
         if: always()
