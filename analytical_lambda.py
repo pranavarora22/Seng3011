@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, pstdev
+from typing import Optional
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -114,7 +115,7 @@ def is_local_mock() -> bool:
     return os.environ.get("LOCAL_MOCK", "").strip().lower() == "true"
 
 
-def load_records(disease: str, country_code: str | None = None) -> list:
+def load_records(disease: str, country_code: Optional[str] = None) -> list:
     """Load normalised records for a disease from DynamoDB or local fixture.
 
     When country_code is provided, queries the main table by pk (disease#country)
@@ -185,7 +186,7 @@ def load_records(disease: str, country_code: str | None = None) -> list:
     ]
 
 
-def classify_risk_score(score: float, prev_score: float | None = None) -> str:
+def classify_risk_score(score: float, prev_score: Optional[float] = None) -> str:
     if prev_score is not None and prev_score >= 25 and score < prev_score - 20:
         return "Declining"
     if score < 25:
@@ -293,6 +294,12 @@ def lambda_handler(event, context):
             signals = [
                 s for s in signals
                 if s.get("payload", {}).get("epi_week", "") <= filters["end_epi_week"]
+            ]
+
+        if filters["country_code"]:
+            signals = [
+                s for s in signals
+                if s.get("payload", {}).get("country_code") == filters["country_code"]
             ]
 
         all_signals.extend(signals[: filters["limit"]])

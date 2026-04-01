@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 import requests
 
@@ -135,7 +136,7 @@ def fetch_flunet_records(year: int) -> list:
 # ---------------------------------------------------------------------------
 
 
-def parse_flunet_style(raw: dict, disease: str, config: dict, timestamp: str) -> dict | None:
+def parse_flunet_style(raw: dict, disease: str, config: dict, timestamp: str) -> Optional[dict]:
     """Parse a FluNet/RSV-style row (ISO_YEAR + ISO_WEEK + 3-letter country code)."""
     cases = raw.get(config["cases_field"])
     if not cases:
@@ -156,7 +157,7 @@ def parse_flunet_style(raw: dict, disease: str, config: dict, timestamp: str) ->
     }
 
 
-def parse_covid_style(raw: dict, disease: str, config: dict, timestamp: str) -> dict | None:
+def parse_covid_style(raw: dict, disease: str, config: dict, timestamp: str) -> Optional[dict]:
     """Parse a COVID-style row (Date_reported YYYY-MM-DD + 2-letter country code)."""
     cases = raw.get(config["cases_field"], 0)
     if not cases or int(cases) <= 0:
