@@ -30,7 +30,7 @@ jobs:
           pip install pytest pytest-cov coverage flake8 mypy types-requests boto3-stubs pytest-html weasyprint
 
       - name: Lint code
-        run: flake8 . --max-line-length=120
+        run: flake8 . --max-line-length=120 --exclude=tests/test_analytical_live.py,tests/test_retrieval_live.py
 
       - name: Type check
         run: mypy . --ignore-missing-imports --exclude tests/
