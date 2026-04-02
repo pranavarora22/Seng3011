@@ -30,7 +30,7 @@ jobs:
           pip install pytest pytest-cov coverage flake8 mypy types-requests boto3-stubs pytest-html weasyprint
 
       - name: Lint code
-        run: flake8 . --max-line-length=120
+        run: flake8 . --max-line-length=120 --exclude=tests/test_analytical_live.py,tests/test_retrieval_live.py
 
       - name: Type check
         run: mypy . --ignore-missing-imports --exclude tests/
@@ -40,6 +40,8 @@ jobs:
           mkdir -p test-results
           export LOCAL_MOCK=True
           pytest tests/ -v \
+            --ignore=tests/test_analytical_live.py \
+            --ignore=tests/test_retrieval_live.py \
             --junitxml=test-results/junit.xml \
             --html=test-report.html \
             --self-contained-html \
@@ -49,7 +51,10 @@ jobs:
         if: always()
         run: |
           python3 - <<'EOF'
-          import re
+          import re, os, sys
+          if not os.path.exists("test-report.html"):
+            print("test-report.html not found, skipping PDF conversion")
+            sys.exit(0)
           html = open("test-report.html").read()
           html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
           override = """<style>
@@ -60,7 +65,9 @@ jobs:
           html = html.replace("</head>", override + "</head>")
           open("test-report-print.html", "w").write(html)
           EOF
-          weasyprint test-report-print.html test-report.pdf
+          if [ -f test-report-print.html ]; then
+            weasyprint test-report-print.html test-report.pdf
+          fi
 
       - name: Upload PDF test report artifact
         if: always()

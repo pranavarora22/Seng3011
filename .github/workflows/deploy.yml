@@ -5,26 +5,84 @@ on:
 
 jobs:
   deploy:
+    name: Deploy to AWS
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Build Lambda zip
+        run: ./build.sh
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest pytest-html weasyprint
 
-      - name: Execute deployment script
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+      - name: Run live ecosystem tests
         run: |
-          chmod +x ./deploy.sh
-          ./deploy.sh --personal
+          mkdir -p test-results
+          pytest tests/test_analytical_live.py tests/test_retrieval_live.py -v \
+            --tb=short \
+            --html=test-report-live.html \
+            --self-contained-html \
+            --junitxml=test-results/junit-live.xml
+
+      - name: Convert live test report to PDF
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import re, os, sys
+          if not os.path.exists("test-report-live.html"):
+            print("test-report-live.html not found, skipping PDF conversion")
+            sys.exit(0)
+          html = open("test-report-live.html").read()
+          html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
+          override = """<style>
+            input[type="checkbox"], label { display: none !important; }
+            tr, tbody tr { display: table-row !important; }
+            .col-links { display: none !important; }
+          </style>"""
+          html = html.replace("</head>", override + "</head>")
+          open("test-report-live-print.html", "w").write(html)
+          EOF
+          if [ -f test-report-live-print.html ]; then
+            weasyprint test-report-live-print.html test-report-live.pdf
+          fi
+
+      - name: Upload live test report PDF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-live-pdf
+          path: test-report-live.pdf
+
+      - name: Upload live JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-live-xml
+          path: test-results/junit-live.xml
