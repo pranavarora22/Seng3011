@@ -49,7 +49,10 @@ jobs:
         if: always()
         run: |
           python3 - <<'EOF'
-          import re
+          import re, os, sys
+          if not os.path.exists("test-report.html"):
+            print("test-report.html not found, skipping PDF conversion")
+            sys.exit(0)
           html = open("test-report.html").read()
           html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
           override = """<style>
@@ -60,7 +63,9 @@ jobs:
           html = html.replace("</head>", override + "</head>")
           open("test-report-print.html", "w").write(html)
           EOF
-          weasyprint test-report-print.html test-report.pdf
+          if [ -f test-report-print.html ]; then
+            weasyprint test-report-print.html test-report.pdf
+          fi
 
       - name: Upload PDF test report artifact
         if: always()
