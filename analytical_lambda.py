@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from statistics import mean, pstdev
+from typing import Optional
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -82,14 +83,26 @@ def compute_signals(records: list) -> list:
             prev_week = history[-1]
             prev_week_num = int(prev_week["epi_week"].split("-W")[1])
             prev_history = history[:-1]
-            prev_same_week = [g["cases_detected"] for g in prev_history if int(g["epi_week"].split("-W")[1]) == prev_week_num]
+            prev_same_week = [
+                g["cases_detected"] for g in prev_history
+                if int(g["epi_week"].split("-W")[1]) == prev_week_num
+            ]
             prev_baseline = prev_same_week if prev_same_week else [g["cases_detected"] for g in prev_history]
             prev_seasonal_mean = mean(prev_baseline)
             prev_seasonal_std = pstdev(prev_baseline)
-            prev_seasonal_z = (prev_week["cases_detected"] - prev_seasonal_mean) / prev_seasonal_std if prev_seasonal_std > 0 else 0.0
-            prev_recent_avg = mean([g["cases_detected"] for g in prev_history[-4:]]) if prev_history else prev_seasonal_mean
+            prev_seasonal_z = (
+                (prev_week["cases_detected"] - prev_seasonal_mean) / prev_seasonal_std
+                if prev_seasonal_std > 0 else 0.0
+            )
+            prev_recent_avg = (
+                mean([g["cases_detected"] for g in prev_history[-4:]])
+                if prev_history else prev_seasonal_mean
+            )
             prev_growth_rate = (prev_week["cases_detected"] - prev_recent_avg) / max(prev_recent_avg, 1)
-            prev_risk_score = 0.40 * (max(0, min(prev_seasonal_z, 3)) / 3 * 100) + 0.60 * (max(0, min(prev_growth_rate, 2)) / 2 * 100)
+            prev_risk_score = (
+                0.40 * (max(0, min(prev_seasonal_z, 3)) / 3 * 100)
+                + 0.60 * (max(0, min(prev_growth_rate, 2)) / 2 * 100)
+            )
 
         risk_level = classify_risk_score(risk_score, prev_risk_score)
 
@@ -114,7 +127,7 @@ def is_local_mock() -> bool:
     return os.environ.get("LOCAL_MOCK", "").strip().lower() == "true"
 
 
-def load_records(disease: str, country_code: str | None = None) -> list:
+def load_records(disease: str, country_code: Optional[str] = None) -> list:
     """Load normalised records for a disease from DynamoDB or local fixture.
 
     When country_code is provided, queries the main table by pk (disease#country)
@@ -157,7 +170,7 @@ def load_records(disease: str, country_code: str | None = None) -> list:
         # Full load: paginate through all records for this disease via GSI 1
         while True:
             kwargs = {
-                "IndexName": "disease-week-index",
+                "IndexName": "disease-week-index",  # type: ignore[dict-item]
                 "KeyConditionExpression": Key("disease").eq(disease),
             }
             if last_key:
@@ -185,7 +198,7 @@ def load_records(disease: str, country_code: str | None = None) -> list:
     ]
 
 
-def classify_risk_score(score: float, prev_score: float | None = None) -> str:
+def classify_risk_score(score: float, prev_score: Optional[float] = None) -> str:
     if prev_score is not None and prev_score >= 25 and score < prev_score - 20:
         return "Declining"
     if score < 25:
@@ -197,8 +210,6 @@ def classify_risk_score(score: float, prev_score: float | None = None) -> str:
     if score < 85:
         return "Sustained Outbreak"
     return "Severe Outbreak"
-
-
 
 
 def parse_query_params(event: dict) -> dict:
@@ -293,6 +304,12 @@ def lambda_handler(event, context):
             signals = [
                 s for s in signals
                 if s.get("payload", {}).get("epi_week", "") <= filters["end_epi_week"]
+            ]
+
+        if filters["country_code"]:
+            signals = [
+                s for s in signals
+                if s.get("payload", {}).get("country_code") == filters["country_code"]
             ]
 
         all_signals.extend(signals[: filters["limit"]])

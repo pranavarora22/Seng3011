@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test + Lint + Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov coverage flake8 mypy types-requests boto3-stubs pytest-html weasyprint
+
+      - name: Lint code
+        run: flake8 . --max-line-length=120
+
+      - name: Type check
+        run: mypy . --ignore-missing-imports --exclude tests/
+
+      - name: Run tests with coverage and JUnit output
+        run: |
+          mkdir -p test-results
+          export LOCAL_MOCK=True
+          pytest tests/ -v \
+            --junitxml=test-results/junit.xml \
+            --html=test-report.html \
+            --self-contained-html \
+            --cov=. --cov-report=xml --cov-report=term --cov-fail-under=85
+
+      - name: Convert test report to PDF
+        if: always()
+        run: |
+          python3 - <<'EOF'
+          import re
+          html = open("test-report.html").read()
+          html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
+          override = """<style>
+            input[type="checkbox"], label { display: none !important; }
+            tr, tbody tr { display: table-row !important; }
+            .col-links { display: none !important; }
+          </style>"""
+          html = html.replace("</head>", override + "</head>")
+          open("test-report-print.html", "w").write(html)
+          EOF
+          weasyprint test-report-print.html test-report.pdf
+
+      - name: Upload PDF test report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-pdf
+          path: test-report.pdf
+
+      - name: Upload coverage report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml

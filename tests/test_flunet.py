@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ["LOCAL_MOCK"] = "True"
 
-import unittest
+import unittest  # noqa: E402
 
 
 class TestFetchFlunetRecords(unittest.TestCase):
@@ -407,5 +407,7 @@ class TestIndexToDynamo(unittest.TestCase):
 
         # Only one put_item call for the two duplicate records
         self.assertEqual(mock_batch.put_item.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()

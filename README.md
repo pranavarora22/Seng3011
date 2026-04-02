@@ -94,13 +94,16 @@ Updated every Monday at 00:00 UTC via EventBridge.
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt pytest coverage flake8
 
 # Run tests
-LOCAL_MOCK=True python -m pytest tests/ -v
+LOCAL_MOCK=True python3 -m pytest tests/ -v
 
 # Run local mock pipeline (writes to tests/mock_s3/)
-python test_run.py
+python3 test_run.py
+
+# Validate code quality
+flake8 . --max-line-length=120
 ```
 
 ---

@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
 import requests
 
@@ -127,7 +128,7 @@ def fetch_covid_records(endpoint: str) -> list:
 
 # Backward-compatible wrapper so existing tests that patch fetch_flunet_records pass.
 def fetch_flunet_records(year: int) -> list:
-    return fetch_odata_records(DISEASE_CONFIG["influenza"]["endpoint"], year)
+    return fetch_odata_records(DISEASE_CONFIG["influenza"]["endpoint"], year)  # type: ignore[index]
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +136,7 @@ def fetch_flunet_records(year: int) -> list:
 # ---------------------------------------------------------------------------
 
 
-def parse_flunet_style(raw: dict, disease: str, config: dict, timestamp: str) -> dict | None:
+def parse_flunet_style(raw: dict, disease: str, config: dict, timestamp: str) -> Optional[dict]:
     """Parse a FluNet/RSV-style row (ISO_YEAR + ISO_WEEK + 3-letter country code)."""
     cases = raw.get(config["cases_field"])
     if not cases:
@@ -156,7 +157,7 @@ def parse_flunet_style(raw: dict, disease: str, config: dict, timestamp: str) ->
     }
 
 
-def parse_covid_style(raw: dict, disease: str, config: dict, timestamp: str) -> dict | None:
+def parse_covid_style(raw: dict, disease: str, config: dict, timestamp: str) -> Optional[dict]:
     """Parse a COVID-style row (Date_reported YYYY-MM-DD + 2-letter country code)."""
     cases = raw.get(config["cases_field"], 0)
     if not cases or int(cases) <= 0:
@@ -234,7 +235,7 @@ def process_disease(disease_name: str, config: dict) -> list:
 
 # Backward-compatible wrapper so existing tests keep passing without changes.
 def process_flunet_disease() -> list:
-    return process_disease("influenza", DISEASE_CONFIG["influenza"])
+    return process_disease("influenza", DISEASE_CONFIG["influenza"])  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
