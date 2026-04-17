@@ -252,7 +252,7 @@ def _docs_response() -> dict:
     import json as _json
     import os as _os
 
-    spec_path = _os.path.join(_os.path.dirname(__file__), "openapi.yaml")
+    spec_path = _os.path.join(_os.path.dirname(__file__), "analytical-swagger.yaml")
     try:
         import yaml  # type: ignore
 

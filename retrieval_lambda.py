@@ -29,8 +29,9 @@ def resolve_country(raw: str) -> str:
     # Try alpha-2 lookup (e.g. "US" → "USA")
     if len(upper) == 2 and upper.isalpha():
         match = pycountry.countries.get(alpha_2=upper)
-        if match:
-            return match.alpha_3
+        alpha3 = getattr(match, "alpha_3", None)
+        if isinstance(alpha3, str):
+            return alpha3
     # Try fuzzy search by name (e.g. "australia" → "AUS")
     try:
         results = pycountry.countries.search_fuzzy(stripped)
@@ -46,12 +47,21 @@ def parse_query_params(event: dict) -> dict:
     disease = params.get("disease", "").lower() or None
     country_raw = params.get("country_code", "")
     country_code = resolve_country(country_raw) if country_raw else None
+
+    raw_limit = params.get("limit", 100)
+    try:
+        limit = int(raw_limit)
+    except (TypeError, ValueError):
+        limit = 100
+
+    limit = max(1, min(limit, 1000))
+
     return {
         "disease": disease,
         "country_code": country_code,
         "start_epi_week": params.get("start_epi_week") or None,
         "end_epi_week": params.get("end_epi_week") or None,
-        "limit": min(int(params.get("limit", 100)), 1000),
+        "limit": limit,
     }
 
 
@@ -178,7 +188,7 @@ def _docs_response() -> dict:
     import json as _json
     import os as _os
 
-    spec_path = _os.path.join(_os.path.dirname(__file__), "openapi.yaml")
+    spec_path = _os.path.join(_os.path.dirname(__file__), "retrieval-swagger.yaml")
     try:
         import yaml  # type: ignore
 
@@ -198,6 +208,20 @@ def lambda_handler(event, context):
 
     filters = parse_query_params(event)
     logger.info("Query filters: %s", filters)
+
+    if filters["disease"] and filters["disease"] not in VALID_DISEASES:
+        return {
+            "statusCode": 400,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "error": (
+                        f"Unknown disease '{filters['disease']}'. "
+                        f"Valid: {sorted(VALID_DISEASES)}"
+                    )
+                }
+            ),
+        }
 
     try:
         if is_local_mock():

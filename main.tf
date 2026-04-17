@@ -223,7 +223,7 @@ resource "aws_apigatewayv2_stage" "retriever_stage" {
 }
 
 resource "aws_lambda_permission" "retriever_apigw" {
-  statement_id  = "AllowAPIGatewayInvoke"
+  statement_id  = "AllowRetrievalAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.data_retriever.function_name
   principal     = "apigateway.amazonaws.com"
@@ -285,7 +285,7 @@ resource "aws_apigatewayv2_stage" "analytical_stage" {
 }
 
 resource "aws_lambda_permission" "analytical_apigw" {
-  statement_id  = "AllowAPIGatewayInvoke"
+  statement_id  = "AllowAnalyticalAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.analytical_model.function_name
   principal     = "apigateway.amazonaws.com"

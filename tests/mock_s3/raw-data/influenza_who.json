@@ -1,0 +1,20 @@
+[
+  {
+    "COUNTRY_CODE": "AUS",
+    "ISO_YEAR": 2024,
+    "ISO_WEEK": 1,
+    "INF_ALL": 142
+  },
+  {
+    "COUNTRY_CODE": "AUS",
+    "ISO_YEAR": 2024,
+    "ISO_WEEK": 2,
+    "INF_ALL": 156
+  },
+  {
+    "COUNTRY_CODE": "USA",
+    "ISO_YEAR": 2024,
+    "ISO_WEEK": 1,
+    "INF_ALL": 210
+  }
+]
