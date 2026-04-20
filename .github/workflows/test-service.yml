@@ -23,29 +23,29 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           pip install pytest pytest-cov pytest-html ruff mypy types-requests boto3-stubs weasyprint
 
       - name: Lint with Ruff
-        run: ruff check . --output-format=github
+        run: ruff check backend --output-format=github
 
       - name: Type check
-        run: mypy . --ignore-missing-imports --exclude tests/
+        run: mypy backend --ignore-missing-imports --exclude backend/tests/
 
       - name: Run tests with coverage and HTML report
         env:
           LOCAL_MOCK: "True"
         run: |
-          mkdir -p test-results
-          python -m pytest tests/ -v \
-            --ignore=tests/test_analytical_live.py \
-            --ignore=tests/test_retrieval_live.py \
+          mkdir -p backend/test-results
+          python -m pytest backend/tests/ -v \
+            --ignore=backend/tests/test_analytical_live.py \
+            --ignore=backend/tests/test_retrieval_live.py \
             --tb=short \
-            --html=test-report.html \
+            --html=backend/test-report.html \
             --self-contained-html \
-            --junitxml=test-results/junit.xml \
-            --cov=. \
-            --cov-report=xml \
+            --junitxml=backend/test-results/junit.xml \
+            --cov=backend \
+            --cov-report=xml:backend/coverage.xml \
             --cov-report=term \
             --cov-fail-under=85
 
@@ -53,8 +53,11 @@ jobs:
         if: always()
         run: |
           python3 - <<'EOF'
-          import re
-          html = open("test-report.html").read()
+          import os, re, sys
+          if not os.path.exists("backend/test-report.html"):
+              print("backend/test-report.html not found, skipping PDF conversion")
+              sys.exit(0)
+          html = open("backend/test-report.html").read()
           html = re.sub(r"<script[^>]*>.*?</script>", "", html, flags=re.DOTALL)
           override = """<style>
             input[type="checkbox"], label { display: none !important; }
@@ -62,33 +65,35 @@ jobs:
             .col-links { display: none !important; }
           </style>"""
           html = html.replace("</head>", override + "</head>")
-          open("test-report-print.html", "w").write(html)
+          open("backend/test-report-print.html", "w").write(html)
           EOF
-          weasyprint test-report-print.html test-report.pdf
+          if [ -f backend/test-report-print.html ]; then
+            weasyprint backend/test-report-print.html backend/test-report.pdf
+          fi
 
       - name: Upload PDF test report as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-report-pdf
-          path: test-report.pdf
+          path: backend/test-report.pdf
 
       - name: Upload HTML test report as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-report-html
-          path: test-report.html
+          path: backend/test-report.html
 
       - name: Upload JUnit test report as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-report-xml
-          path: test-results/junit.xml
+          path: backend/test-results/junit.xml
 
       - name: Upload coverage report as artifact
         uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
-          path: coverage.xml
+          path: backend/coverage.xml

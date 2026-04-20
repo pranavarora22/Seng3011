@@ -94,13 +94,13 @@ Updated every Monday at 00:00 UTC via EventBridge.
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt pytest coverage flake8
+pip install -r ../backend/requirements.txt pytest coverage flake8
 
 # Run tests
-LOCAL_MOCK=True python3 -m pytest tests/ -v
+LOCAL_MOCK=True python3 -m pytest ../backend/tests/ -v
 
 # Run local mock pipeline (writes to tests/mock_s3/)
-python3 test_run.py
+python3 ../backend/test_run.py
 
 # Validate code quality
 flake8 . --max-line-length=120
@@ -112,11 +112,11 @@ flake8 . --max-line-length=120
 
 ```bash
 # One-command deploy (builds zip + imports existing resources + applies)
-./deploy.sh                  # AWS Academy (default)
-./deploy.sh --personal       # Personal AWS account
+cd infra && ./deploy.sh                  # AWS Academy (default)
+cd infra && ./deploy.sh --personal       # Personal AWS account
 
 # Or manually:
-./build.sh                   # Package Lambda code into deployment.zip
+cd infra && ./build.sh                  # Package Lambda code into deployment.zip
 terraform init
 terraform apply              # AWS Academy
 terraform apply -var="use_lab_role=false"  # Personal account
