@@ -28,7 +28,7 @@ export default function FreshnessPanel({ mode }) {
 
         <div className="status-row">
           <span className="status-label">Last Viewed</span>
-          <span className="status-value">{now.toLocaleString()}</span>
+          <span className="status-value">{now.toLocaleString("en-AU", { timeZone: "Australia/Sydney" })}</span>
         </div>
 
         <div className="status-row">

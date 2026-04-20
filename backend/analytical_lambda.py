@@ -158,6 +158,7 @@ def load_records(disease: str, country_code: Optional[str] = None) -> list:
         while True:
             kwargs = {
                 "KeyConditionExpression": Key("pk").eq(f"{disease}#{country_code}"),
+                "ConsistentRead": True,
             }
             if last_key:
                 kwargs["ExclusiveStartKey"] = last_key
