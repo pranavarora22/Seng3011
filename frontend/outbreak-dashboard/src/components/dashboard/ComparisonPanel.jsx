@@ -1,4 +1,6 @@
+import React from "react";
 import { formatNumber, getRiskBadgeClass } from "../../utils/formatters";
+import { fetchGDP, fetchUnemployment } from "../../services/api";
 
 export default function ComparisonPanel({
   mode,
@@ -7,6 +9,45 @@ export default function ComparisonPanel({
   primarySignal,
   comparisonSignal,
 }) {
+
+  // ADDED STATE (safe, isolated)
+  const [showExternal, setShowExternal] = React.useState(false);
+  const [gdpData, setGdpData] = React.useState(null);
+  const [unemploymentData, setUnemploymentData] = React.useState(null);
+  const [loadingExternal, setLoadingExternal] = React.useState(false);
+
+  // ADDED HANDLER
+  const handleToggleExternal = async () => {
+    const newState = !showExternal;
+    setShowExternal(newState);
+
+    if (newState && !gdpData && !unemploymentData) {
+      setLoadingExternal(true);
+
+      try {
+        const gdp = await fetchGDP({
+          start: "2020-Q1",
+          end: "2023-Q4",
+        });
+
+        const unemployment = await fetchUnemployment({
+          start: "2020-01",
+          end: "2023-12",
+        });
+
+        console.log("GDP:", gdp);
+        console.log("Unemployment:", unemployment);
+
+        setGdpData(gdp);
+        setUnemploymentData(unemployment);
+      } catch (err) {
+        console.error("External API error:", err);
+      }
+
+      setLoadingExternal(false);
+    }
+  };
+
   if (mode !== "compare") {
     return (
       <section className="panel">
@@ -17,6 +58,20 @@ export default function ComparisonPanel({
             outbreak indicators.
           </p>
         </div>
+
+        {/* ADDED BUTTON */}
+        <button onClick={handleToggleExternal}>
+          {showExternal ? "Hide Economic Data" : "Compare with Economic Data"}
+        </button>
+
+        {/* ADDED DISPLAY */}
+        {showExternal && (
+          <ExternalDataBlock
+            loading={loadingExternal}
+            gdpData={gdpData}
+            unemploymentData={unemploymentData}
+          />
+        )}
 
         <SingleCountryDriverPanel
           country={primaryCountry}
@@ -66,6 +121,20 @@ export default function ComparisonPanel({
         </p>
       </div>
 
+      {/* ADDED BUTTON */}
+      <button onClick={handleToggleExternal}>
+        {showExternal ? "Hide Economic Data" : "Compare with Economic Data"}
+      </button>
+
+      {/* ADDED DISPLAY */}
+      {showExternal && (
+        <ExternalDataBlock
+          loading={loadingExternal}
+          gdpData={gdpData}
+          unemploymentData={unemploymentData}
+        />
+      )}
+
       <div className="comparison-summary">
         <strong>Quick read:</strong>{" "}
         {buildComparisonSummary(
@@ -84,6 +153,29 @@ export default function ComparisonPanel({
         />
       </div>
     </section>
+  );
+}
+
+// ADDED COMPONENT (isolated, no interference)
+function ExternalDataBlock({ loading, gdpData, unemploymentData }) {
+  if (loading) return <p>Loading economic data...</p>;
+
+  if (!gdpData && !unemploymentData)
+    return <p>No economic data available</p>;
+
+  return (
+    <div className="external-data">
+      <h4>External Economic Data</h4>
+
+      <pre style={{ maxHeight: "200px", overflow: "auto" }}>
+        {JSON.stringify({ gdpData, unemploymentData }, null, 2)}
+      </pre>
+
+      <p>GDP first value: {gdpData?.[0]?.value || "N/A"}</p>
+      <p>
+        Unemployment first value: {unemploymentData?.[0]?.value || "N/A"}
+      </p>
+    </div>
   );
 }
 
