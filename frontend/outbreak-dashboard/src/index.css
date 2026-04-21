@@ -1293,3 +1293,18 @@ body.theme-dark-body {
 .theme-dark .theme-toggle-label {
   color: #cbd5e1;
 }
+
+.theme-dark .loading-panel {
+  background: #111827;
+  border: 1px solid #1f2937;
+  color: #f8fafc;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+}
+
+.theme-dark .loading-panel h2 {
+  color: #f8fafc;
+}
+
+.theme-dark .loading-panel p {
+  color: #dbe4f0;
+}

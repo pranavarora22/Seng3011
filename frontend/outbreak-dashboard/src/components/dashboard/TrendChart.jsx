@@ -16,6 +16,7 @@ export default function TrendChart({
   comparisonRecords,
   primaryCountry,
   comparisonCountry,
+  theme,
 }) {
   const chartData =
     mode === "compare"
@@ -50,6 +51,15 @@ export default function TrendChart({
     );
   }
 
+  const axisTickColor = theme === "dark" ? "#cbd5e1" : "#475569";
+  const axisLineColor = theme === "dark" ? "rgba(148, 163, 184, 0.35)" : "#cbd5e1";
+  const gridColor = theme === "dark" ? "rgba(148, 163, 184, 0.22)" : "rgba(148, 163, 184, 0.28)";
+  const legendColor = theme === "dark" ? "#e2e8f0" : "#334155";
+  const tooltipBackground = theme === "dark" ? "#0f172a" : "#ffffff";
+  const tooltipBorder = theme === "dark" ? "#334155" : "#cbd5e1";
+  const tooltipText = theme === "dark" ? "#f8fafc" : "#0f172a";
+  const tooltipItem = theme === "dark" ? "#e2e8f0" : "#334155";
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -71,29 +81,29 @@ export default function TrendChart({
       <div className="chart-wrapper">
         <ResponsiveContainer width="100%" height={380}>
           <LineChart data={chartData}>
-            <CartesianGrid stroke="rgba(148, 163, 184, 0.22)" strokeDasharray="3 3" />
+            <CartesianGrid stroke={gridColor} strokeDasharray="3 3" />
             <XAxis
               dataKey="epi_week"
-              tick={{ fill: "#cbd5e1", fontSize: 12 }}
-              stroke="rgba(148, 163, 184, 0.35)"
+              tick={{ fill: axisTickColor, fontSize: 12 }}
+              stroke={axisLineColor}
             />
             <YAxis
-              tick={{ fill: "#cbd5e1", fontSize: 12 }}
-              stroke="rgba(148, 163, 184, 0.35)"
+              tick={{ fill: axisTickColor, fontSize: 12 }}
+              stroke={axisLineColor}
             />
             <Tooltip
               formatter={(value) => formatNumber(value)}
               labelFormatter={(label) => `Week: ${label}`}
               contentStyle={{
-                backgroundColor: "#0f172a",
-                border: "1px solid #334155",
+                backgroundColor: tooltipBackground,
+                border: `1px solid ${tooltipBorder}`,
                 borderRadius: "12px",
-                color: "#f8fafc",
+                color: tooltipText,
               }}
-              labelStyle={{ color: "#f8fafc", fontWeight: 700 }}
-              itemStyle={{ color: "#e2e8f0" }}
+              labelStyle={{ color: tooltipText, fontWeight: 700 }}
+              itemStyle={{ color: tooltipItem }}
             />
-            <Legend wrapperStyle={{ color: "#e2e8f0" }} />
+            <Legend wrapperStyle={{ color: legendColor }} />
             <Line
               type="monotone"
               dataKey={primaryCountry}
