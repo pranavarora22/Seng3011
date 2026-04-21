@@ -55,10 +55,17 @@ export async function fetchDiseaseRecords({
   return parseJsonResponse(response, "Retrieval API");
 }
 
-export async function fetchAnalyticalSignal({ disease, country_code }) {
+export async function fetchAnalyticalSignal({
+  disease,
+  country_code,
+  start_epi_week,
+  end_epi_week,
+}) {
   const queryString = buildQueryString({
     disease,
     country_code,
+    start_epi_week,
+    end_epi_week,
   });
 
   const response = await fetch(`${ANALYTICAL_API}?${queryString}`);

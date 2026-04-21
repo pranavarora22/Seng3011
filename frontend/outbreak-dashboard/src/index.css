@@ -19,7 +19,11 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(79, 70, 229, 0.08), transparent 24%),
+    radial-gradient(
+      circle at top left,
+      rgba(79, 70, 229, 0.08),
+      transparent 24%
+    ),
     linear-gradient(180deg, #f7f8fc 0%, #eef2f9 100%);
   color: #111827;
 }
@@ -118,7 +122,9 @@ select {
   display: inline-flex;
   align-items: center;
   padding: 3px;
-  transition: background 0.2s ease, border-color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
 .theme-toggle-thumb {
@@ -126,7 +132,9 @@ select {
   height: 20px;
   border-radius: 50%;
   background: #2563eb;
-  transition: transform 0.2s ease, background 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease;
 }
 
 .theme-toggle.is-dark .theme-toggle-track {
@@ -377,11 +385,21 @@ select {
   margin-bottom: 24px;
 }
 
-.grid-span-4 { grid-column: span 4; }
-.grid-span-5 { grid-column: span 5; }
-.grid-span-7 { grid-column: span 7; }
-.grid-span-8 { grid-column: span 8; }
-.grid-span-12 { grid-column: span 12; }
+.grid-span-4 {
+  grid-column: span 4;
+}
+.grid-span-5 {
+  grid-column: span 5;
+}
+.grid-span-7 {
+  grid-column: span 7;
+}
+.grid-span-8 {
+  grid-column: span 8;
+}
+.grid-span-12 {
+  grid-column: span 12;
+}
 
 .filter-grid {
   display: grid;
@@ -408,7 +426,9 @@ select {
   border-radius: 12px;
   padding: 0 12px;
   background: #fbfcff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .field input:focus,
@@ -970,7 +990,8 @@ select {
 .theme-dark .comparison-card-filled,
 .theme-dark .comparison-card-empty,
 .theme-dark .method-note,
-.theme-dark .empty-state {
+.theme-dark .empty-state,
+.theme-dark .loading-panel {
   background: #111827;
   border-color: #1f2937;
   color: #f3f4f6;
@@ -1037,7 +1058,11 @@ select {
 
 body.theme-dark-body {
   background:
-    radial-gradient(circle at top left, rgba(139, 92, 246, 0.12), transparent 24%),
+    radial-gradient(
+      circle at top left,
+      rgba(139, 92, 246, 0.12),
+      transparent 24%
+    ),
     linear-gradient(180deg, #020617 0%, #0f172a 100%);
   color: #f3f4f6;
 }
@@ -1189,8 +1214,16 @@ body.theme-dark-body {
 
 body.theme-dark-body {
   background:
-    radial-gradient(circle at top center, rgba(168, 85, 247, 0.26), transparent 34%),
-    radial-gradient(circle at top left, rgba(139, 92, 246, 0.18), transparent 28%),
+    radial-gradient(
+      circle at top center,
+      rgba(168, 85, 247, 0.26),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at top left,
+      rgba(139, 92, 246, 0.18),
+      transparent 28%
+    ),
     linear-gradient(180deg, #020617 0%, #0b1120 48%, #0f172a 100%);
   color: #f3f4f6;
 }

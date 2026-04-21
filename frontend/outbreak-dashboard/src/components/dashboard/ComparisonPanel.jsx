@@ -1,7 +1,4 @@
-import {
-  formatNumber,
-  getRiskBadgeClass,
-} from "../../utils/formatters";
+import { formatNumber, getRiskBadgeClass } from "../../utils/formatters";
 
 export default function ComparisonPanel({
   mode,
@@ -23,14 +20,20 @@ export default function ComparisonPanel({
 
         <SingleCountryDriverPanel
           country={primaryCountry}
-          payload={primarySignal?.payload}
+          payload={
+            hasUsableSignal(primarySignal) ? primarySignal.payload : null
+          }
         />
       </section>
     );
   }
 
-  const primaryPayload = primarySignal?.payload;
-  const comparisonPayload = comparisonSignal?.payload;
+  const primaryPayload = hasUsableSignal(primarySignal)
+    ? primarySignal.payload
+    : null;
+  const comparisonPayload = hasUsableSignal(comparisonSignal)
+    ? comparisonSignal.payload
+    : null;
 
   if (!primaryPayload && !comparisonPayload) {
     return (
@@ -65,12 +68,20 @@ export default function ComparisonPanel({
 
       <div className="comparison-summary">
         <strong>Quick read:</strong>{" "}
-        {buildComparisonSummary(primaryCountry, primaryPayload, comparisonCountry, comparisonPayload)}
+        {buildComparisonSummary(
+          primaryCountry,
+          primaryPayload,
+          comparisonCountry,
+          comparisonPayload,
+        )}
       </div>
 
       <div className="split-grid">
         <ComparisonCard country={primaryCountry} payload={primaryPayload} />
-        <ComparisonCard country={comparisonCountry} payload={comparisonPayload} />
+        <ComparisonCard
+          country={comparisonCountry}
+          payload={comparisonPayload}
+        />
       </div>
     </section>
   );
@@ -100,6 +111,9 @@ function ComparisonCard({ country, payload }) {
         </li>
         <li>
           <strong>Current Cases:</strong> {formatNumber(payload.current_cases)}
+        </li>
+        <li>
+          <strong>Growth Rate:</strong> {formatNumber(payload.growth_rate)}
         </li>
         <li>
           <strong>Persistence:</strong>{" "}
@@ -154,7 +168,7 @@ function buildComparisonSummary(
   primaryCountry,
   primaryPayload,
   comparisonCountry,
-  comparisonPayload
+  comparisonPayload,
 ) {
   if (!primaryPayload && comparisonPayload) {
     return `${comparisonCountry} returned a signal, while ${primaryCountry} did not.`;
@@ -168,8 +182,8 @@ function buildComparisonSummary(
     return "No signals available for either selected country.";
   }
 
-  const primaryScore = Number(primaryPayload.risk_score || 0);
-  const comparisonScore = Number(comparisonPayload.risk_score || 0);
+  const primaryScore = Number(primaryPayload.risk_score ?? 0);
+  const comparisonScore = Number(comparisonPayload.risk_score ?? 0);
 
   if (primaryScore > comparisonScore) {
     return `${primaryCountry} currently shows a stronger outbreak signal than ${comparisonCountry}.`;
@@ -180,4 +194,11 @@ function buildComparisonSummary(
   }
 
   return `${primaryCountry} and ${comparisonCountry} currently show similar risk scores.`;
+}
+
+function hasUsableSignal(signal) {
+  const payload = signal?.payload;
+  if (!payload) return false;
+  if (payload.risk_level === "INSUFFICIENT_DATA") return false;
+  return payload.risk_score !== undefined && payload.risk_score !== null;
 }

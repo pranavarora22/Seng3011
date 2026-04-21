@@ -11,10 +11,7 @@ import ExportPanel from "./components/dashboard/ExportPanel";
 import RecommendationPanel from "./components/dashboard/RecommendationPanel";
 import LoadingState from "./components/common/LoadingState";
 import ErrorState from "./components/common/ErrorState";
-import {
-  fetchDiseaseRecords,
-  fetchAnalyticalSignal,
-} from "./services/api";
+import { fetchDiseaseRecords, fetchAnalyticalSignal } from "./services/api";
 
 export default function App() {
   const [theme, setTheme] = useState("light");
@@ -68,6 +65,8 @@ export default function App() {
         fetchAnalyticalSignal({
           disease: activeFilters.disease,
           country_code: activeFilters.country_code,
+          start_epi_week: activeFilters.start_epi_week,
+          end_epi_week: activeFilters.end_epi_week,
         }),
       ];
 
@@ -84,6 +83,8 @@ export default function App() {
               fetchAnalyticalSignal({
                 disease: activeFilters.disease,
                 country_code: activeFilters.compare_country_code,
+                start_epi_week: activeFilters.start_epi_week,
+                end_epi_week: activeFilters.end_epi_week,
               }),
             ]
           : [Promise.resolve(null), Promise.resolve(null)];
@@ -111,21 +112,16 @@ export default function App() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadDashboardData(filters);
   }, [filters]);
 
   function handleApplyFilters(nextFilters) {
     setFilters(nextFilters);
-    loadDashboardData(nextFilters);
   }
 
   function handleModeChange(nextMode) {
-    const nextFilters = {
-      ...filters,
-      mode: nextMode,
-    };
-    setFilters(nextFilters);
-    loadDashboardData(nextFilters);
+    setFilters((prev) => ({ ...prev, mode: nextMode }));
   }
 
   function handleThemeToggle() {
@@ -179,7 +175,7 @@ export default function App() {
         root: null,
         rootMargin: "-20% 0px -55% 0px",
         threshold: [0.2, 0.4, 0.6],
-      }
+      },
     );
 
     sectionEntries.forEach(({ ref }) => {
@@ -224,7 +220,9 @@ export default function App() {
         >
           <div>
             <p className="hero-kicker">Public Health Intelligence</p>
-            <h1>Track disease trends and identify elevated outbreak risk faster.</h1>
+            <h1>
+              Track disease trends and identify elevated outbreak risk faster.
+            </h1>
             <p className="hero-text">
               Explore weekly WHO-based disease records, assess outbreak risk,
               compare countries when needed, and interpret analytical outputs
@@ -290,7 +288,8 @@ export default function App() {
                   <div className="panel-header">
                     <h2>Why teams use this dashboard</h2>
                     <p>
-                      The product turns raw surveillance data into faster monitoring insight.
+                      The product turns raw surveillance data into faster
+                      monitoring insight.
                     </p>
                   </div>
 
@@ -343,11 +342,7 @@ export default function App() {
                 />
               </div>
 
-              <div
-                className="grid-span-4"
-                ref={riskRef}
-                data-section-id="risk"
-              >
+              <div className="grid-span-4" ref={riskRef} data-section-id="risk">
                 <RiskInsightPanel signal={signal} />
               </div>
             </div>
