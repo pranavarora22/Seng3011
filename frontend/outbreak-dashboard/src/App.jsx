@@ -339,6 +339,7 @@ export default function App() {
                   comparisonRecords={comparisonRecords}
                   primaryCountry={filters.country_code}
                   comparisonCountry={filters.compare_country_code}
+                  theme={theme}
                 />
               </div>
 
