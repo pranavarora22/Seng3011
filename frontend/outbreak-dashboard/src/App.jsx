@@ -207,7 +207,7 @@ export default function App() {
 
       <main className="main-content">
         <Topbar
-          title="Outbreak Insight"
+          title="BioRadar"
           subtitle={pageSubtitle}
           disease={filters.disease}
           countryCode={filters.country_code}
