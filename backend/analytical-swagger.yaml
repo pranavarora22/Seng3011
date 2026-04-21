@@ -136,7 +136,11 @@ components:
       name: limit
       in: query
       required: false
-      description: Maximum number of returned signal groups. Values above 1000 are capped.
+      description: |
+        Cap on the number of returned signal groups. In practice the response
+        contains at most one signal per `(disease, country_code)` group, so
+        this parameter rarely has any effect (maximum 3 signals without a
+        country filter, 1 with). Values above 1000 are capped.
       schema:
         type: integer
         minimum: 1
@@ -181,18 +185,12 @@ components:
 
     PublicHealthSignalPayload:
       type: object
+      description: |
+        Payload shape depends on data availability. When fewer than 26 weeks
+        of history exist for the group, only `risk_level` is populated (with
+        the value `INSUFFICIENT_DATA`). Otherwise every field below is
+        returned.
       required:
-        - disease
-        - country_code
-        - epi_week
-        - current_cases
-        - seasonal_mean
-        - seasonal_std_dev
-        - seasonal_z_score
-        - growth_rate
-        - acceleration
-        - persistence_weeks
-        - risk_score
         - risk_level
       properties:
         disease:
@@ -251,8 +249,12 @@ components:
 
     SignalError:
       type: object
-      required: [error]
+      required: [disease, error]
       properties:
+        disease:
+          type: string
+          enum: [influenza, rsv, sars-cov-2]
+          example: influenza
         error:
           type: string
           example: No records available for requested disease

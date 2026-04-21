@@ -1,13 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import COUNTRIES from "../../data/countries";
 import { capitaliseDiseaseName } from "../../utils/formatters";
 
 export default function FiltersPanel({ filters, onApply }) {
   const [localFilters, setLocalFilters] = useState(filters);
+  const [syncedFilters, setSyncedFilters] = useState(filters);
 
-  useEffect(() => {
+  if (filters !== syncedFilters) {
+    setSyncedFilters(filters);
     setLocalFilters(filters);
-  }, [filters]);
+  }
 
   function handleChange(event) {
     const { name, value } = event.target;
@@ -34,7 +36,7 @@ export default function FiltersPanel({ filters, onApply }) {
   const filteredComparisonCountries = useMemo(() => {
     if (localFilters.mode !== "compare") return COUNTRIES;
     return COUNTRIES.filter(
-      (country) => country.code !== localFilters.country_code
+      (country) => country.code !== localFilters.country_code,
     );
   }, [localFilters.mode, localFilters.country_code]);
 
