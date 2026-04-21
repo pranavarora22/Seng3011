@@ -17,8 +17,8 @@ export default function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-mark" />
-        <h2>Outbreak Insight</h2>
+        <img src="/logo.png" alt="BioRadar" className="brand-logo" />
+        <h2>BioRadar</h2>
       </div>
 
       <div className="sidebar-live-badge">
