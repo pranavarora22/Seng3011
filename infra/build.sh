@@ -13,7 +13,9 @@ echo "Installing dependencies..."
 pip install -r ../backend/requirements.txt -t .build_package --quiet
 
 echo "Copying Lambda handlers and assets..."
-cp ../backend/lambda_function.py ../backend/retrieval_lambda.py ../backend/analytical_lambda.py ../backend/openapi.yaml .build_package/
+cp ../backend/lambda_function.py ../backend/retrieval_lambda.py ../backend/analytical_lambda.py \
+   ../backend/auth_lambda.py ../backend/authorizer_lambda.py \
+   ../backend/openapi.yaml .build_package/
 
 echo "Zipping..."
 rm -f deployment.zip
