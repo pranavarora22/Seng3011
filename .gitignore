@@ -11,3 +11,4 @@ deployment.zip
 .terraform.tfstate.lock.info
 datasets/
 response.json
+report.xml
