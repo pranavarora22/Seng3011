@@ -1,7 +1,7 @@
 const RETRIEVAL_API =
-  "https://4q6q6fbh4m.execute-api.ap-southeast-2.amazonaws.com";
+  "https://55uup6k9a6.execute-api.ap-southeast-2.amazonaws.com";
 const ANALYTICAL_API =
-  "https://ikjc6t2sh5.execute-api.ap-southeast-2.amazonaws.com";
+  "https://9ug5j10r5c.execute-api.ap-southeast-2.amazonaws.com";
 
 function buildQueryString(params) {
   const searchParams = new URLSearchParams();
