@@ -11,18 +11,76 @@ import ExportPanel from "./components/dashboard/ExportPanel";
 import RecommendationPanel from "./components/dashboard/RecommendationPanel";
 import LoadingState from "./components/common/LoadingState";
 import ErrorState from "./components/common/ErrorState";
+import LoginPage from "./components/auth/LoginPage";
+import SignupPage from "./components/auth/SignupPage";
+import LandingPage from "./components/auth/LandingPage";
 import { fetchDiseaseRecords, fetchAnalyticalSignal } from "./services/api";
+import { isAuthenticated, getUser, clearSession } from "./services/auth";
 
 export default function App() {
+  // "landing" | "login" | "signup"
+  const [page, setPage] = useState("landing");
+  const [currentUser, setCurrentUser] = useState(() => (isAuthenticated() ? getUser() : null));
   const [theme, setTheme] = useState("light");
 
   useEffect(() => {
     document.body.classList.toggle("theme-dark-body", theme === "dark");
-
-    return () => {
-      document.body.classList.remove("theme-dark-body");
-    };
+    return () => document.body.classList.remove("theme-dark-body");
   }, [theme]);
+
+  function toggleTheme() {
+    setTheme((t) => (t === "light" ? "dark" : "light"));
+  }
+
+  function handleAuth(user) {
+    setCurrentUser(user);
+  }
+
+  function handleLogout() {
+    clearSession();
+    setCurrentUser(null);
+    setPage("landing");
+  }
+
+  if (currentUser) {
+    return <Dashboard currentUser={currentUser} onLogout={handleLogout} theme={theme} onThemeToggle={toggleTheme} />;
+  }
+
+  if (page === "login") {
+    return (
+      <LoginPage
+        onAuth={handleAuth}
+        onGoSignup={() => setPage("signup")}
+        onGoLanding={() => setPage("landing")}
+        theme={theme}
+        onThemeToggle={toggleTheme}
+      />
+    );
+  }
+
+  if (page === "signup") {
+    return (
+      <SignupPage
+        onAuth={handleAuth}
+        onGoLogin={() => setPage("login")}
+        onGoLanding={() => setPage("landing")}
+        theme={theme}
+        onThemeToggle={toggleTheme}
+      />
+    );
+  }
+
+  return (
+    <LandingPage
+      onGoLogin={() => setPage("login")}
+      onGoSignup={() => setPage("signup")}
+      theme={theme}
+      onThemeToggle={toggleTheme}
+    />
+  );
+}
+
+function Dashboard({ currentUser, onLogout, theme, onThemeToggle }) {
 
   const [filters, setFilters] = useState({
     mode: "single",
@@ -125,7 +183,7 @@ export default function App() {
   }
 
   function handleThemeToggle() {
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
+    onThemeToggle();
   }
 
   function handleSectionChange(sectionId) {
@@ -211,6 +269,8 @@ export default function App() {
           subtitle={pageSubtitle}
           disease={filters.disease}
           countryCode={filters.country_code}
+          currentUser={currentUser}
+          onLogout={onLogout}
         />
 
         <section

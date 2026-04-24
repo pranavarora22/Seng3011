@@ -35,6 +35,13 @@ variable "use_lab_role" {
   default     = true
 }
 
+variable "jwt_secret" {
+  description = "Secret key used to sign JWT tokens. Must be a strong random string in production."
+  type        = string
+  sensitive   = true
+  default     = "change-this-to-a-strong-random-secret-before-deploying"
+}
+
 data "aws_caller_identity" "current" {
   count = var.use_lab_role ? 1 : 0
 }
@@ -82,6 +89,8 @@ resource "aws_iam_role_policy" "lambda_scoped" {
         Resource = [
           aws_dynamodb_table.disease_records.arn,
           "${aws_dynamodb_table.disease_records.arn}/*",
+          aws_dynamodb_table.users.arn,
+          "${aws_dynamodb_table.users.arn}/*",
         ]
       },
       {
@@ -143,6 +152,19 @@ resource "aws_dynamodb_table" "disease_records" {
     hash_key        = "disease"
     range_key       = "epi_week"
     projection_type = "ALL"
+  }
+}
+
+# ---------- Users DynamoDB table (auth) ----------
+
+resource "aws_dynamodb_table" "users" {
+  name         = "seng3011-users"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "email"
+
+  attribute {
+    name = "email"
+    type = "S"
   }
 }
 
@@ -292,6 +314,107 @@ resource "aws_lambda_permission" "analytical_apigw" {
   source_arn    = "${aws_apigatewayv2_api.analytical_api.execution_arn}/*/*"
 }
 
+# ---------- Auth Lambda ----------
+
+resource "aws_lambda_function" "auth" {
+  function_name    = "seng3011-auth"
+  role             = local.lambda_role_arn
+  handler          = "auth_lambda.lambda_handler"
+  runtime          = "python3.10"
+  timeout          = 30
+  memory_size      = 256
+  s3_bucket        = aws_s3_bucket.data_bucket.id
+  s3_key           = aws_s3_object.lambda_code.key
+  source_code_hash = filebase64sha256("${path.module}/deployment.zip")
+
+  environment {
+    variables = {
+      USERS_TABLE = aws_dynamodb_table.users.name
+      JWT_SECRET  = var.jwt_secret
+    }
+  }
+}
+
+# ---------- JWT Authorizer Lambda ----------
+
+resource "aws_lambda_function" "jwt_authorizer" {
+  function_name    = "seng3011-jwt-authorizer"
+  role             = local.lambda_role_arn
+  handler          = "authorizer_lambda.lambda_handler"
+  runtime          = "python3.10"
+  timeout          = 10
+  memory_size      = 128
+  s3_bucket        = aws_s3_bucket.data_bucket.id
+  s3_key           = aws_s3_object.lambda_code.key
+  source_code_hash = filebase64sha256("${path.module}/deployment.zip")
+
+  environment {
+    variables = {
+      JWT_SECRET = var.jwt_secret
+    }
+  }
+}
+
+# ---------- Auth API Gateway (HTTP API) ----------
+
+resource "aws_apigatewayv2_api" "auth_api" {
+  name          = "seng3011-auth-api"
+  protocol_type = "HTTP"
+
+  cors_configuration {
+    allow_origins = ["*"]
+    allow_methods = ["POST", "OPTIONS"]
+    allow_headers = ["content-type", "authorization"]
+  }
+}
+
+resource "aws_apigatewayv2_integration" "auth_integration" {
+  api_id                 = aws_apigatewayv2_api.auth_api.id
+  integration_type       = "AWS_PROXY"
+  integration_uri        = aws_lambda_function.auth.invoke_arn
+  payload_format_version = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "auth_signup" {
+  api_id    = aws_apigatewayv2_api.auth_api.id
+  route_key = "POST /auth/signup"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "auth_login" {
+  api_id    = aws_apigatewayv2_api.auth_api.id
+  route_key = "POST /auth/login"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "auth_refresh" {
+  api_id    = aws_apigatewayv2_api.auth_api.id
+  route_key = "POST /auth/refresh"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_integration.id}"
+}
+
+resource "aws_apigatewayv2_stage" "auth_stage" {
+  api_id      = aws_apigatewayv2_api.auth_api.id
+  name        = "$default"
+  auto_deploy = true
+}
+
+resource "aws_lambda_permission" "auth_apigw" {
+  statement_id  = "AllowAuthAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.auth.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.auth_api.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "authorizer_apigw" {
+  statement_id  = "AllowAuthorizerAPIGatewayInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.jwt_authorizer.function_name
+  principal     = "apigateway.amazonaws.com"
+  source_arn    = "${aws_apigatewayv2_api.auth_api.execution_arn}/*/*"
+}
+
 # ---------- EventBridge weekly schedule ----------
 
 resource "aws_cloudwatch_event_rule" "weekly_trigger" {
@@ -355,4 +478,9 @@ output "retrieval_function_url" {
 output "analytical_model_function_url" {
   description = "Public HTTPS URL for the analytical model API"
   value       = aws_apigatewayv2_api.analytical_api.api_endpoint
+}
+
+output "auth_api_url" {
+  description = "Public HTTPS URL for the auth API (signup, login, refresh)"
+  value       = aws_apigatewayv2_api.auth_api.api_endpoint
 }
