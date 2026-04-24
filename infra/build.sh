@@ -9,8 +9,13 @@ echo "Cleaning previous build..."
 rm -rf .build_package
 mkdir -p .build_package
 
-echo "Installing dependencies..."
-pip install -r ../backend/requirements.txt -t .build_package --quiet
+echo "Installing dependencies (in python3.10 Lambda container)..."
+docker run --rm \
+  --user "$(id -u):$(id -g)" \
+  --entrypoint "" \
+  -v "$PWD/..":/workspace -w /workspace \
+  public.ecr.aws/sam/build-python3.10 \
+  pip install -r backend/requirements.txt -t infra/.build_package --quiet
 
 echo "Copying Lambda handlers and assets..."
 cp ../backend/lambda_function.py ../backend/retrieval_lambda.py ../backend/analytical_lambda.py \
@@ -19,6 +24,6 @@ cp ../backend/lambda_function.py ../backend/retrieval_lambda.py ../backend/analy
 
 echo "Zipping..."
 rm -f deployment.zip
-cd .build_package && zip -r ../deployment.zip . -x "*.pyc" -x "__pycache__/*" > /dev/null
+(cd .build_package && zip -r ../deployment.zip . -x "*.pyc" -x "__pycache__/*" > /dev/null)
 
 echo "Done: deployment.zip ($(du -sh deployment.zip | cut -f1))"

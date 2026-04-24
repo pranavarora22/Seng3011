@@ -260,7 +260,7 @@ resource "aws_lambda_function" "analytical_model" {
   handler          = "analytical_lambda.lambda_handler"
   runtime          = "python3.10"
   timeout          = 300
-  memory_size      = 256
+  memory_size      = 1769
   s3_bucket        = aws_s3_bucket.data_bucket.id
   s3_key           = aws_s3_object.lambda_code.key
   source_code_hash = filebase64sha256("${path.module}/deployment.zip")
