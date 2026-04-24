@@ -221,7 +221,6 @@ class TestSignup(unittest.TestCase):
     # --- duplicate user ---
 
     def test_signup_duplicate_email_returns_409(self):
-        import auth_lambda
         existing_item = _make_user_item("dup@example.com")
         table = _mock_table(get_item_return={"Item": existing_item})
         self.mock_dynamodb.Table.return_value = table
@@ -233,7 +232,6 @@ class TestSignup(unittest.TestCase):
         self.assertIn("already", json.loads(result["body"])["error"].lower())
 
     def test_signup_duplicate_email_does_not_overwrite(self):
-        import auth_lambda
         existing_item = _make_user_item("dup@example.com")
         table = _mock_table(get_item_return={"Item": existing_item})
         self.mock_dynamodb.Table.return_value = table

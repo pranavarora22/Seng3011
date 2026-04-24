@@ -4,10 +4,11 @@ import uuid
 import logging
 from datetime import datetime, timezone, timedelta
 
+import re
+
 import boto3
 import bcrypt
 import jwt
-from boto3.dynamodb.conditions import Key
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -54,6 +55,21 @@ def _create_token(user_id, email, token_type="access"):
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def _validate_email(email):
+    pattern = r'^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    return bool(re.match(pattern, email))
+
+
+def _validate_password(password):
+    if len(password) < 8:
+        return "Password must be at least 8 characters"
+    if not any(c.isupper() for c in password):
+        return "Password must contain at least one uppercase letter"
+    if not any(c.isdigit() for c in password):
+        return "Password must contain at least one number"
+    return None
+
+
 def handle_signup(body):
     email = body.get("email", "").strip().lower()
     password = body.get("password", "")
@@ -61,6 +77,13 @@ def handle_signup(body):
 
     if not email or not password:
         return _response(400, {"error": "Email and password are required"})
+
+    if not _validate_email(email):
+        return _response(400, {"error": "Invalid email address"})
+
+    password_error = _validate_password(password)
+    if password_error:
+        return _response(400, {"error": password_error})
 
     table = dynamodb.Table(USERS_TABLE)
 

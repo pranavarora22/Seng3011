@@ -36,7 +36,7 @@ def resolve_country(raw: str) -> str:
     try:
         results = pycountry.countries.search_fuzzy(stripped)
         if results:
-            return results[0].alpha_3
+            return results[0].alpha_3  # type: ignore[attr-defined]
     except LookupError:
         pass
     return upper
